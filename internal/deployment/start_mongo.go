@@ -2,13 +2,9 @@ package deployment
 
 import (
 	"context"
+	"data-storage-svc/internal/api/utils"
 	"errors"
-	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -40,7 +36,7 @@ func StartMongoDB() error {
 			Image:    "mongo",
 			Hostname: "mongo",
 		}
-		dataDir, err := getDataDir()
+		dataDir, err := utils.GetDataDir("mongo")
 		if err != nil {
 			slog.Error("couldn't find the /data directory ")
 			panic(err)
@@ -88,49 +84,4 @@ func StartMongoDB() error {
 	}
 
 	return nil
-}
-
-func getDataDir() (string, error) {
-	_, filename, _, ok := runtime.Caller(1)
-	if !ok {
-		return "", fmt.Errorf("unable to get current file info")
-	}
-	currentFilePath := filepath.Dir(filename)
-	parts := strings.Split(currentFilePath, string(filepath.Separator))
-
-	// Find the index of "internal"
-	index := -1
-	for i, part := range parts {
-		if part == "internal" {
-			index = i
-			break
-		}
-	}
-
-	if index == -1 {
-		return "", errors.New("The segment 'internal' was not found in the path")
-	}
-
-	// Replace "internal" with "data/mongo"
-	parts[index] = "data/mongo"
-	parts = append([]string{"/"}, parts...)
-
-	dataDirPath := filepath.Join(parts[:index+2]...)
-	exists, err := pathExists(dataDirPath)
-	if err != nil || !exists {
-		return "", errors.New("data dir path do not exists")
-	}
-
-	return dataDirPath, nil
-}
-
-func pathExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil // path exists
-	}
-	if os.IsNotExist(err) {
-		return false, nil // path does not exist
-	}
-	return false, err // some other error
 }
