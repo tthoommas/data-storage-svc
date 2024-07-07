@@ -1,10 +1,15 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Media struct {
-	OriginalFileName *string    `json:"originalFileName"`
-	StorageFileName  *string    `json:"storageFileName"`
-	UploadedBy       *string    `json:"uploadedBy"`
-	UploadTime       *time.Time `json:"uploadTime"`
+	Id               primitive.ObjectID `bson:"_id,omitempty"`
+	OriginalFileName *string            `bson:"originalFileName"`
+	StorageFileName  *string            `bson:"storageFileName"`
+	UploadedBy       *string            `bson:"uploadedBy"`
+	UploadTime       *time.Time         `bson:"uploadTime"`
 }

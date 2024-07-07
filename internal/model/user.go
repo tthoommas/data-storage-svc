@@ -1,10 +1,15 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type User struct {
-	Email              *string
-	JoinDate           *time.Time
-	PasswordHash       *string
-	GrantedPermissions []int
+	Id           *primitive.ObjectID `bson:"_id,omitempty"`
+	IsAdmin      *bool               `bson:"isAdmin,omitempty"`
+	Email        *string             `bson:"email"`
+	JoinDate     *time.Time          `bson:"joinDate,omitempty"`
+	PasswordHash *string             `bson:"passwordHash"`
 }

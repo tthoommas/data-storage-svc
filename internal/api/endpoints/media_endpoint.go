@@ -4,6 +4,7 @@ import (
 	"data-storage-svc/internal/api/utils"
 	"data-storage-svc/internal/database"
 	"data-storage-svc/internal/model"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func UploadMedia(c *gin.Context) {
@@ -46,9 +48,10 @@ func UploadMedia(c *gin.Context) {
 	storageFileName := uuid.NewString()
 	storageFileName = storageFileName + "." + extension
 
-	uploadedBy := c.GetString("email")
+	user, _ := c.Get("user")
+	uploadedBy := user.(*model.User)
 	uploadTime := time.Now()
-	err = database.CreateMedia(&model.Media{OriginalFileName: &fileName, StorageFileName: &storageFileName, UploadedBy: &uploadedBy, UploadTime: &uploadTime})
+	mediaId, err := database.CreateMedia(&model.Media{OriginalFileName: &fileName, StorageFileName: &storageFileName, UploadedBy: uploadedBy.Email, UploadTime: &uploadTime})
 	if err != nil {
 		slog.Debug("Impossible to add media into database", "error", err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "couldn't upload file"})
@@ -68,27 +71,116 @@ func UploadMedia(c *gin.Context) {
 		return
 	}
 
+	err = database.GrantAccessToMedia(uploadedBy.Id, mediaId)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't upload file"})
+		slog.Debug("couldn't grant access to newly uploaded media", "error", err, "uploadedBy", *uploadedBy.Email, "mediaId", mediaId.Hex())
+		return
+	}
+
 	c.Status(http.StatusOK)
 }
 
-var AllowedMediaExtension = map[string]bool{
-	"jpg":  true,
-	"jpeg": true,
-	"png":  true,
-	"gif":  true,
+var MediaExtensionMimeType = map[string]string{
+	"jpg":  "image/jpeg",
+	"jpeg": "image/jpeg",
+	"png":  "image/png",
+	"gif":  "image/gif",
 }
 
-func checkExtension(filename *string) (string, bool) {
+func getExtension(filename *string) (string, error) {
 	parts := strings.Split(*filename, ".")
 	extension := ""
 	if len(parts) < 2 {
-		slog.Debug("Invalid filename, no extension")
-		return "", false
+		slog.Debug("Invalid filename, no extension", "filename", filename)
+		return "", errors.New("couldn't decode file extension")
 	} else {
 		extension = parts[len(parts)-1]
 	}
+	return extension, nil
+}
 
-	isValid := AllowedMediaExtension[extension]
+func checkExtension(filename *string) (string, bool) {
+	extension, err := getExtension(filename)
+	if err != nil {
+		return "", false
+	}
+	isValid := MediaExtensionMimeType[extension]
 	slog.Debug("Examining file extension", "extension", extension, "accepted", isValid)
-	return extension, isValid
+	return extension, isValid != ""
+}
+
+func getMimeType(filename *string) (string, error) {
+	extension, err := getExtension(filename)
+	if err != nil {
+		return "", err
+	}
+	return MediaExtensionMimeType[extension], nil
+}
+
+func MyMedias(c *gin.Context) {
+	rawUser, _ := c.Get("user")
+	user := rawUser.(*model.User)
+	medias, err := database.GetAllMediasForUser(user.Id)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't fetch medias"})
+		return
+	}
+	c.IndentedJSON(http.StatusOK, medias)
+}
+
+func GetMedia(c *gin.Context) {
+	rawUser, _ := c.Get("user")
+	user := rawUser.(*model.User)
+
+	// Decode the media id requested in query param
+	rawMediaId := c.Query("mediaId")
+	mediaId, error := primitive.ObjectIDFromHex(rawMediaId)
+	if rawMediaId == "" || error != nil {
+		slog.Debug("Fetching media with invalid ID", "user", *user.Email, "rawMediaId", rawMediaId, "decodedMediaId", mediaId)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid media ID"})
+		return
+	}
+
+	// Check if user can access this media
+	if !database.CanUserAccessMedia(user.Id, &mediaId) {
+		slog.Debug("User is not allowed to access this media", "user", *user.Email, "media", mediaId.Hex())
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not allowed to access this resource"})
+		return
+	}
+
+	// Get the media meta-info
+	media, err := database.GetMedia(&mediaId)
+	if err != nil {
+		slog.Debug("Couldn't get media meta-infos", "error", err, "mediaId", mediaId)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't fetch media"})
+		return
+	}
+
+	// Read media to send it
+	mediaDirectory, err := utils.GetDataDir("medias")
+	if err != nil {
+		slog.Debug("Couldn't get data directory", "error", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't fetch media"})
+		return
+	}
+	mediaFilePath := filepath.Join(mediaDirectory, *media.StorageFileName)
+	slog.Debug("Reading requested file", "filePath", mediaFilePath)
+	data, err := os.ReadFile(mediaFilePath)
+	if err != nil {
+		slog.Debug("Cannot read requested media file", "error", err, "mediaFilePath", mediaFilePath)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't fetch media"})
+		return
+	}
+
+	slog.Debug("read file", "length", len(data))
+
+	// Infer mime type and send the media
+	mimeType, err := getMimeType(media.StorageFileName)
+	if err != nil {
+		slog.Debug("Cannot infer file mime type", "error", err, "mediaFilePath", mediaFilePath)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't fetch media"})
+		return
+	}
+	c.Data(http.StatusOK, mimeType, data)
 }

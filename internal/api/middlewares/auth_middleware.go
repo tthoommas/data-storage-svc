@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"data-storage-svc/internal/api/security"
+	"data-storage-svc/internal/database"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -37,9 +38,12 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Extract email claim
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			email := claims["email"]
-			// Store user ID in the context
-			c.Set("email", email)
+			email := claims["email"].(string)
+			user, err := database.FindUserByEmail(&email)
+			if err != nil {
+				slog.Debug("couldn't find authenticated user", "email", email, "error", err)
+			}
+			c.Set("user", user)
 		} else {
 			slog.Debug("Couldn't find email claim in token")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
