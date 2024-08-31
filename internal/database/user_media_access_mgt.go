@@ -25,7 +25,7 @@ func GetAllMediasForUser(UserId *primitive.ObjectID) ([]primitive.ObjectID, erro
 	}
 	defer cursor.Close(context.Background())
 
-	var mediaAccesses []primitive.ObjectID
+	var mediaAccesses []primitive.ObjectID = make([]primitive.ObjectID, 0)
 	for cursor.Next(context.Background()) {
 		var mediaAccess model.UserMediaAccess
 		if err = cursor.Decode(&mediaAccess); err != nil {

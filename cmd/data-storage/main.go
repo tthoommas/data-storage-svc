@@ -14,6 +14,7 @@ func main() {
 	slog.Info("Starting data-storage service...")
 	deployment.StartMongoDB()
 	router := gin.Default()
+	router.Use(middlewares.CORSMiddleware())
 
 	router.POST("/registerUser", endpoints.RegisterUser)
 	router.POST("/fetchJwt", endpoints.FetchJWT)

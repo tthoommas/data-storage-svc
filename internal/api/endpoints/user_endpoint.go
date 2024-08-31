@@ -72,5 +72,8 @@ func FetchJWT(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't create token"})
 		return
 	}
+
+	c.SetCookie("jwt", jwt, 3600, "/", "localhost", false, true)
+	c.SetCookie("user", fetchJWTBody.Email, 3600, "/", "", false, false)
 	c.JSON(http.StatusOK, gin.H{"jwt": jwt})
 }

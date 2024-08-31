@@ -5,7 +5,6 @@ import (
 	"data-storage-svc/internal/database"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
@@ -13,19 +12,13 @@ import (
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		authCookie, err := c.Cookie("jwt")
+		if err != nil || authCookie == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
-			return
-		}
-
-		tokenString := parts[1]
+		tokenString := authCookie
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			return security.GetSecretKey(), nil
 		})
@@ -42,6 +35,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			user, err := database.FindUserByEmail(&email)
 			if err != nil {
 				slog.Debug("couldn't find authenticated user", "email", email, "error", err)
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+				return
 			}
 			c.Set("user", user)
 		} else {

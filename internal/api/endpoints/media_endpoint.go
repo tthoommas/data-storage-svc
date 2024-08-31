@@ -29,7 +29,7 @@ func UploadMedia(c *gin.Context) {
 	}
 	fileName := c.GetHeader("Content-Disposition")
 	if len(fileName) == 0 {
-		slog.Debug("Not file name provided")
+		slog.Debug("No file name provided")
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "no file name provided while uploading"})
 		return
 	}
