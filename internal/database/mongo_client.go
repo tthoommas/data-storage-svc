@@ -51,4 +51,32 @@ func configureMongoDb(client *mongo.Client) {
 		Options: options.Index().SetUnique(true),
 	}
 	client.Database(DB_NAME).Collection(USER_MEDIA_ACCESS_COLLECTION).Indexes().CreateOne(context.Background(), indexUserMediaId)
+
+	// Create an index to quicly get all albums accessible to a user
+	indexUserAlbumId := mongo.IndexModel{
+		Keys:    bson.D{{Key: "userId", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	client.Database(DB_NAME).Collection(USER_ALBUM_ACCESS_COLLECTION).Indexes().CreateOne(context.Background(), indexUserAlbumId)
+
+	// Create an index to check quickly if a given user can access a given album + ensure uniqueness
+	userAlbumAccessKey := mongo.IndexModel{
+		Keys:    bson.D{{Key: "albumId", Value: 1}, {Key: "userId", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	client.Database(DB_NAME).Collection(USER_ALBUM_ACCESS_COLLECTION).Indexes().CreateOne(context.Background(), userAlbumAccessKey)
+
+	// Create an index to quickly get all media from a given album
+	indexAlbumId := mongo.IndexModel{
+		Keys: bson.D{{Key: "albumId", Value: 1}},
+	}
+	client.Database(DB_NAME).Collection(MEDIA_IN_ALBUM_COLLECTION).Indexes().CreateOne(context.Background(), indexAlbumId)
+
+	// Ensure a media can only be added once to a given album
+	uniqueMediaInAlbum := mongo.IndexModel{
+		Keys:    bson.D{{Key: "albumId", Value: 1}, {Key: "mediaId", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	client.Database(DB_NAME).Collection(MEDIA_IN_ALBUM_COLLECTION).Indexes().CreateOne(context.Background(), uniqueMediaInAlbum)
+
 }
