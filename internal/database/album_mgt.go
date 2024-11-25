@@ -61,5 +61,5 @@ func GetAllMediasInAlbum(AlbumId *primitive.ObjectID) ([]model.MediaInAlbum, err
 }
 
 func DeleteAlbum(AlbumId *primitive.ObjectID) error {
-
+	return nil
 }
