@@ -4,15 +4,18 @@ import (
 	"context"
 	"data-storage-svc/internal/api/utils"
 	"errors"
+	"io"
 	"log/slog"
+	"os"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 )
 
-func StartMongoDB() error {
+func startMongoDB() error {
 	slog.Debug("Starting Mongo DB")
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -32,6 +35,16 @@ func StartMongoDB() error {
 
 	if len(containers) == 0 {
 		slog.Debug("No existing mongo container found, creating one")
+
+		// Pull the MongoDB image
+		out, err := apiClient.ImagePull(context.Background(), "mongo", image.PullOptions{})
+		if err != nil {
+			slog.Error("couldn't pull the mongo image")
+			panic(err)
+		}
+		io.Copy(os.Stdout, out)
+		defer out.Close()
+
 		containerConfig := &container.Config{
 			Image:    "mongo",
 			Hostname: "mongo",
