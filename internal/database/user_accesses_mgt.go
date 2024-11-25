@@ -101,6 +101,23 @@ func CanUserEditAlbum(UserId *primitive.ObjectID, AlbumId *primitive.ObjectID) b
 	return access.CanEdit
 }
 
+func CanUserDeleteAlbum(UserId *primitive.ObjectID, AlbumId *primitive.ObjectID) bool {
+	filter := bson.D{{Key: "albumId", Value: AlbumId}}
+	result := Mongo().Collection(ALBUM_COLLECTION).FindOne(context.Background(), filter)
+	if result.Err() != nil {
+		slog.Debug("couldn't find album", "error", result.Err(), "albumId", AlbumId.Hex())
+		return false
+	}
+	var album model.Album
+	err := result.Decode(&album)
+	if err != nil {
+		slog.Debug("Couldn't decode album from DB", "error", err)
+		return false
+	}
+	// Allow delete for owner only
+	return album.AuthorId.String() == UserId.String()
+}
+
 func GetAllAlbumsForUser(UserId *primitive.ObjectID) ([]model.UserAlbumAccess, error) {
 	filter := bson.M{"userId": UserId}
 	cursor, err := Mongo().Collection(USER_ALBUM_ACCESS_COLLECTION).Find(context.Background(), filter)

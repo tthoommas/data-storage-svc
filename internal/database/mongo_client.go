@@ -54,8 +54,7 @@ func configureMongoDb(client *mongo.Client) {
 
 	// Create an index to quicly get all albums accessible to a user
 	indexUserAlbumId := mongo.IndexModel{
-		Keys:    bson.D{{Key: "userId", Value: 1}},
-		Options: options.Index().SetUnique(true),
+		Keys: bson.D{{Key: "userId", Value: 1}},
 	}
 	client.Database(DB_NAME).Collection(USER_ALBUM_ACCESS_COLLECTION).Indexes().CreateOne(context.Background(), indexUserAlbumId)
 

@@ -11,6 +11,34 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+func GetAlbumById(c *gin.Context) {
+	rawAlbumId := c.Query("albumId")
+	albumId, err := primitive.ObjectIDFromHex(rawAlbumId)
+	if rawAlbumId == "" || err != nil {
+		slog.Debug("Fetching album with invalid ID", "rawAlbumId", rawAlbumId)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid album ID"})
+		return
+	}
+
+	rawUser, _ := c.Get("user")
+	user := rawUser.(*model.User)
+
+	if !database.CanUserAccessAlbum(user.Id, &albumId) {
+		slog.Debug("User is not allowed to access this album", "user", *user.Email, "album", albumId)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	album, err := database.GetAlbumById(&albumId)
+	if err != nil {
+		slog.Debug("Couldn't find album.", "albumId", albumId, "error", err)
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, album)
+}
+
 func GetMyAlbums(c *gin.Context) {
 	rawUser, _ := c.Get("user")
 	user := rawUser.(*model.User)
@@ -36,7 +64,7 @@ func GetMediasInAlbum(c *gin.Context) {
 	rawAlbumId := c.Query("albumId")
 	albumId, err := primitive.ObjectIDFromHex(rawAlbumId)
 	if rawAlbumId == "" || err != nil {
-		slog.Debug("Fetching media with invalid ID", "rawAlbumId", rawAlbumId)
+		slog.Debug("Fetching album with invalid ID", "rawAlbumId", rawAlbumId)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid album ID"})
 		return
 	}
@@ -98,7 +126,7 @@ func CreateAlbum(c *gin.Context) {
 	}
 
 	if err := database.GrantAccessToAlbum(uploadedBy.Id, insertedID, true); err != nil {
-		slog.Error("Couldn't grant access to album author", "createdAlbumId", insertedID, "user", *uploadedBy.Email)
+		slog.Error("Couldn't grant access to album author", "createdAlbumId", insertedID, "user", *uploadedBy.Email, "error", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
@@ -170,6 +198,22 @@ func RemoveMediaFromAlbum(c *gin.Context) {
 }
 
 func DeleteAlbum(c *gin.Context) {
+	rawAlbumId := c.Query("albumId")
+	albumId, err := primitive.ObjectIDFromHex(rawAlbumId)
+	if rawAlbumId == "" || err != nil {
+		slog.Debug("Fetching album with invalid ID", "rawAlbumId", rawAlbumId)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid album ID"})
+		return
+	}
+
+	rawUser, _ := c.Get("user")
+	user := rawUser.(*model.User)
+
+	if !database.CanUserDeleteAlbum(user.Id, &albumId) {
+		slog.Debug("User is not allowed to delete this album", "user", *user.Email, "album", albumId)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
 
 }
 

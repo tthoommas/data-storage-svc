@@ -28,6 +28,8 @@ func main() {
 		authorized.POST("/addMediaToAlbum", endpoints.AddMediaToAlbum)
 		authorized.GET("/myAlbums", endpoints.GetMyAlbums)
 		authorized.GET("/mediasInAlbum", endpoints.GetMediasInAlbum)
+		authorized.GET("/album", endpoints.GetAlbumById)
+		authorized.DELETE("/deleteAlbum", endpoints.DeleteAlbum)
 	}
 
 	admins := router.Group("", middlewares.AuthMiddleware(), middlewares.AdminMiddleware())
