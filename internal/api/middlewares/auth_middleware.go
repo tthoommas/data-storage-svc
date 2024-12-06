@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"data-storage-svc/internal/api/security"
-	"data-storage-svc/internal/database"
+	"data-storage-svc/internal/api/services"
 	"log/slog"
 	"net/http"
 
@@ -10,7 +10,7 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(userService services.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authCookie, err := c.Cookie("jwt")
 		if err != nil || authCookie == "" {
@@ -32,7 +32,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Extract email claim
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			email := claims["email"].(string)
-			user, err := database.FindUserByEmail(&email)
+			user, err := userService.GetByEmail(email)
 			if err != nil {
 				slog.Debug("couldn't find authenticated user", "email", email, "error", err)
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})

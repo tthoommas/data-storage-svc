@@ -1,52 +1,47 @@
 package endpoints
 
 import (
-	"data-storage-svc/internal/api/security"
-	"data-storage-svc/internal/api/utils"
-	"data-storage-svc/internal/database"
-	"log/slog"
+	"data-storage-svc/internal/api/common"
+	"data-storage-svc/internal/api/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
+
+type UserEndpoint interface {
+	// Create (register) a new user
+	Create(c *gin.Context)
+	// Fetch a JWT token to authenticate user
+	FetchToken(c *gin.Context)
+}
+type userEndpoint struct {
+	common.Endpoint
+	userService services.UserService
+}
+
+func NewUserEndpoint(userService services.UserService) UserEndpoint {
+	return userEndpoint{Endpoint: common.NewEndpoint("album", "/album", nil), userService: userService}
+}
 
 type RegisterUserBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-func RegisterUser(c *gin.Context) {
+func (e userEndpoint) Create(c *gin.Context) {
 	var registerUserBody RegisterUserBody
 
 	if err := c.BindJSON(&registerUserBody); err != nil {
 		return
 	}
-	if !utils.IsValidEmail(registerUserBody.Email) {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid email address"})
+
+	_, svcErr := e.userService.Create(registerUserBody.Email, registerUserBody.Password)
+	if svcErr != nil {
+		svcErr.Apply(c)
 		return
 	}
-	if len(registerUserBody.Password) < 6 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "password should be at least 6 characters long"})
-		return
-	}
-	if database.UserExists(&registerUserBody.Email) {
-		slog.Debug("user already exits cannot create duplicate", "email", registerUserBody.Email)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "user already exists"})
-		return
-	}
-	hash, err := security.HashPassword(registerUserBody.Password)
-	if err != nil {
-		slog.Debug("Impossible to hash password", "error", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "couldn't register new user"})
-		return
-	}
-	err = database.StoreNewUser(&registerUserBody.Email, &hash)
-	if err != nil {
-		slog.Debug("couldn't register new user in database", "error", err)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't register new user"})
-		return
-	}
-	slog.Debug("New user register", "email", registerUserBody.Email, "hash", hash)
+
+	c.Status(http.StatusCreated)
 }
 
 type FetchJWTBody struct {
@@ -54,26 +49,20 @@ type FetchJWTBody struct {
 	Password string `json:"password"`
 }
 
-func FetchJWT(c *gin.Context) {
+func (e userEndpoint) FetchToken(c *gin.Context) {
 	var fetchJWTBody FetchJWTBody
 
 	if err := c.BindJSON(&fetchJWTBody); err != nil {
 		return
 	}
-	if !security.AuthenticateUser(&fetchJWTBody.Email, &fetchJWTBody.Password) {
-		slog.Debug("Auth failed for user", "user", fetchJWTBody.Email)
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid login"})
-		return
-	}
 
-	jwt, err := security.CreateToken(&fetchJWTBody.Email)
+	jwt, err := e.userService.GenerateToken(fetchJWTBody.Email, fetchJWTBody.Password)
 	if err != nil {
-		slog.Debug("Couldn't create JWT", "email", fetchJWTBody.Email, "error", err)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "couldn't create token"})
+		err.Apply(c)
 		return
 	}
 
-	c.SetCookie("jwt", jwt, 3600, "/", "localhost", false, true)
+	c.SetCookie("jwt", *jwt, 3600, "/", "localhost", false, true)
 	c.SetCookie("user", fetchJWTBody.Email, 3600, "/", "", false, false)
 	c.JSON(http.StatusOK, gin.H{"jwt": jwt})
 }

@@ -22,12 +22,12 @@ func AdminMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authorized"})
 			return
 		}
-		if loggedUser.IsAdmin == nil || !*loggedUser.IsAdmin {
-			slog.Debug("Admin middleware: user is not admin, rejected.", "email", *loggedUser.Email, "isAdmin", loggedUser.IsAdmin)
+		if !loggedUser.IsAdmin {
+			slog.Debug("Admin middleware: user is not admin, rejected.", "email", loggedUser.Email, "isAdmin", loggedUser.IsAdmin)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authorized"})
 			return
 		}
-		slog.Debug("Admin user, allowed.", "email", *loggedUser.Email)
+		slog.Debug("Admin user, allowed.", "email", loggedUser.Email)
 		c.Next()
 	}
 }

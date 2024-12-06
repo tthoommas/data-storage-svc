@@ -9,5 +9,6 @@ import (
 func main() {
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	cli.LoadCliParameters()
+	deployment.StartMongoDB()
 	deployment.StartApi()
 }

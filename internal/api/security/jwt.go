@@ -1,7 +1,7 @@
 package security
 
 import (
-	"data-storage-svc/internal/api/utils"
+	"data-storage-svc/internal/utils"
 	"log/slog"
 	"os"
 	"time"

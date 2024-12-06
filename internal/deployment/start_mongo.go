@@ -2,7 +2,7 @@ package deployment
 
 import (
 	"context"
-	"data-storage-svc/internal/api/utils"
+	"data-storage-svc/internal/utils"
 	"errors"
 	"io"
 	"log/slog"
@@ -15,7 +15,7 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func startMongoDB() error {
+func StartMongoDB() error {
 	slog.Debug("Starting Mongo DB")
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
