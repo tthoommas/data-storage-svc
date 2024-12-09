@@ -64,6 +64,7 @@ func StartApi() {
 			album.GET("/list", albumEndpoint.GetAll)
 			album.GET("/getmedias", albumEndpoint.GetMedias)
 			album.GET("/get", albumEndpoint.Get)
+			album.DELETE("/delete", albumEndpoint.Delete)
 		}
 	}
 

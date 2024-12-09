@@ -79,10 +79,10 @@ func (r mediaAccessRepository) Get(userId *primitive.ObjectID, mediaId *primitiv
 		slog.Debug("couldn't find media. Cannot check if user is allowed to access it.", "error", result.Err(), "userId", userId.Hex(), "mediaId", mediaId.Hex())
 		return nil, fmt.Errorf("couldn't find usermediaccess in database - error [%s]", result.Err())
 	}
-	var userMediaAccess *model.UserMediaAccess
-	err := result.Decode(userMediaAccess)
+	var userMediaAccess model.UserMediaAccess
+	err := result.Decode(&userMediaAccess)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't decode usermediaaccess from database error - [%s]", err)
 	}
-	return userMediaAccess, nil
+	return &userMediaAccess, nil
 }

@@ -43,7 +43,7 @@ func (s userService) Create(email string, password string) (*primitive.ObjectID,
 	// Check if user already exists
 	_, err := s.userRepository.GetByEmail(email)
 	if err == nil || err != mongo.ErrNoDocuments {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't create new user")
+		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't create new user")
 	}
 	// Hash the user's password
 	hash, err := security.HashPassword(password)

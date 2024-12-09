@@ -120,8 +120,16 @@ func (e mediaEndpoint) Delete(c *gin.Context) {
 		return
 	}
 
+	// Only the owner can delete a media
 	if *media.UploadedBy != user.Id {
 		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Actually delete the media
+	svcErr = e.mediaService.Delete(&media.Id)
+	if svcErr != nil {
+		svcErr.Apply(c)
 		return
 	}
 

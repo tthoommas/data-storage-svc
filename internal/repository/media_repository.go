@@ -62,7 +62,7 @@ func (r mediaRepository) GetAllUploadedBy(userId *primitive.ObjectID) ([]model.M
 
 	defer cursor.Close(context.Background())
 
-	var medias []model.Media
+	var medias []model.Media = make([]model.Media, 0)
 	for cursor.Next(context.Background()) {
 		var media model.Media
 		if err = cursor.Decode(&media); err != nil {

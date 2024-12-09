@@ -98,10 +98,10 @@ func (r albumAccessRepository) Get(userId *primitive.ObjectID, albumId *primitiv
 		slog.Debug("couldn't find album access. User probably don't have permission to view this album", "error", result.Err(), "userId", userId.Hex(), "albumId", albumId.Hex())
 		return nil, fmt.Errorf("couldn't find album access. User probably don't have permission to view this album - error [%s]", result.Err())
 	}
-	var albumAccess *model.UserAlbumAccess
-	err := result.Decode(albumAccess)
+	var albumAccess model.UserAlbumAccess
+	err := result.Decode(&albumAccess)
 	if err != nil {
 		return nil, err
 	}
-	return albumAccess, nil
+	return &albumAccess, nil
 }
