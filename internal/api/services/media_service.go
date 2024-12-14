@@ -1,10 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
 	"errors"
+	"image"
+	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/image/draw"
 )
 
 type MediaService interface {
@@ -23,7 +27,7 @@ type MediaService interface {
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
-	GetData(storageFileName string) (*string, []byte, utils.ServiceError)
+	GetData(storageFileName string, mediaQuality model.MediaQuality) (*string, []byte, utils.ServiceError)
 	// Get all media accessible to a given user
 	GetAllSharedWithUser(userId *primitive.ObjectID) ([]model.UserMediaAccess, utils.ServiceError)
 	// Get all medias uploaded by user
@@ -128,7 +132,7 @@ func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.
 	return media, nil
 }
 
-func (s mediaService) GetData(storageFileName string) (*string, []byte, utils.ServiceError) {
+func (s mediaService) GetData(storageFileName string, mediaQuality model.MediaQuality) (*string, []byte, utils.ServiceError) {
 	// Read media to send it
 	mediaDirectory, err := utils.GetDataDir("medias")
 	if err != nil {
@@ -136,8 +140,15 @@ func (s mediaService) GetData(storageFileName string) (*string, []byte, utils.Se
 	}
 	mediaFilePath := filepath.Join(mediaDirectory, storageFileName)
 	slog.Debug("Reading requested file", "filePath", mediaFilePath)
+
 	data, err := os.ReadFile(mediaFilePath)
 	if err != nil {
+		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
+	}
+
+	data, err = resizeImage(data, mediaQuality)
+	if err != nil {
+		slog.Debug("Error while resizing the image", "error", err)
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 
@@ -149,6 +160,38 @@ func (s mediaService) GetData(storageFileName string) (*string, []byte, utils.Se
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 	return &mimeType, data, nil
+}
+
+func resizeImage(originalRaw []byte, maxQuality model.MediaQuality) ([]byte, error) {
+	originalDecoded, _, err := image.Decode(bytes.NewReader(originalRaw))
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate the final image size we want (make sure to keep image ratio)
+	originalWidth := originalDecoded.Bounds().Max.X
+	originalHeight := originalDecoded.Bounds().Max.Y
+	bigSide := max(originalWidth, originalHeight)
+
+	newSize := min(maxQuality.AsInt(), bigSide)
+	ratio := float64(bigSide) / float64(newSize)
+
+	finalWidth := originalWidth / int(ratio)
+	finalHeight := originalHeight / int(ratio)
+
+	// Create the resized image
+	resizedImage := image.NewRGBA(image.Rect(0, 0, finalWidth, finalHeight))
+
+	// Do the resize
+	draw.NearestNeighbor.Scale(resizedImage, resizedImage.Rect, originalDecoded, originalDecoded.Bounds(), draw.Over, nil)
+
+	// Encode it into a byte buffer
+	var result bytes.Buffer
+	err = jpeg.Encode(io.Writer(&result), resizedImage, nil)
+	if err != nil {
+		return nil, err
+	}
+	return result.Bytes(), err
 }
 
 func (s mediaService) GetAllSharedWithUser(userId *primitive.ObjectID) ([]model.UserMediaAccess, utils.ServiceError) {

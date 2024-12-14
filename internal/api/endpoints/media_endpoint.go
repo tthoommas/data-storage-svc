@@ -3,6 +3,7 @@ package endpoints
 import (
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/services"
+	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/utils"
 	"log/slog"
 	"net/http"
@@ -79,6 +80,9 @@ func (e mediaEndpoint) Get(c *gin.Context) {
 		return
 	}
 
+	// Decode the requested size in query param (if any)
+	mediaQuality := model.ParseMediaQuality(c.DefaultQuery("quality", "medium"))
+
 	// Check if user can access this media
 	if !e.mediaAccessService.CanView(&user.Id, mediaId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
@@ -92,7 +96,7 @@ func (e mediaEndpoint) Get(c *gin.Context) {
 		return
 	}
 	// Get the media data
-	mimeType, data, svcErr := e.mediaService.GetData(*media.StorageFileName)
+	mimeType, data, svcErr := e.mediaService.GetData(*media.StorageFileName, mediaQuality)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
