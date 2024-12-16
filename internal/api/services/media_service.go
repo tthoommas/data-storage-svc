@@ -183,7 +183,7 @@ func resizeImage(originalRaw []byte, maxQuality model.MediaQuality) ([]byte, err
 	resizedImage := image.NewRGBA(image.Rect(0, 0, finalWidth, finalHeight))
 
 	// Do the resize
-	draw.NearestNeighbor.Scale(resizedImage, resizedImage.Rect, originalDecoded, originalDecoded.Bounds(), draw.Over, nil)
+	draw.BiLinear.Scale(resizedImage, resizedImage.Rect, originalDecoded, originalDecoded.Bounds(), draw.Over, nil)
 
 	// Encode it into a byte buffer
 	var result bytes.Buffer
