@@ -49,6 +49,10 @@ func StartApi() {
 	authorized := router.Group("", authMiddleware)
 	{
 
+		user := authorized.Group("/user")
+		{
+			user.POST("/logout", userEndpoint.Logout)
+		}
 		media := authorized.Group("/media")
 		{
 			media.POST("/upload", mediaEndpoint.Create)

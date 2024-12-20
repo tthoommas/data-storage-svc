@@ -13,6 +13,8 @@ type UserEndpoint interface {
 	Create(c *gin.Context)
 	// Fetch a JWT token to authenticate user
 	FetchToken(c *gin.Context)
+	// Logout, i.e. delete the JWT token
+	Logout(c *gin.Context)
 }
 type userEndpoint struct {
 	common.Endpoint
@@ -63,6 +65,11 @@ func (e userEndpoint) FetchToken(c *gin.Context) {
 	}
 
 	c.SetCookie("jwt", *jwt, 3600, "/", "localhost", false, true)
-	c.SetCookie("user", fetchJWTBody.Email, 3600, "/", "", false, false)
+	c.SetCookie("user", fetchJWTBody.Email, 3600, "/", "localhost", false, false)
 	c.JSON(http.StatusOK, gin.H{"jwt": jwt})
+}
+
+func (e userEndpoint) Logout(c *gin.Context) {
+	c.SetCookie("jwt", "", -1, "/", "localhost", false, true)
+	c.Status(http.StatusOK)
 }
