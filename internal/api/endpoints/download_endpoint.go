@@ -18,6 +18,8 @@ type DownloadEndpoint interface {
 	IsReady(c *gin.Context)
 	// Download a previously created zip file
 	Download(c *gin.Context)
+	// Get a specifc download meta-data
+	Get(c *gin.Context)
 }
 type downloadEndpoint struct {
 	common.Endpoint
@@ -134,4 +136,31 @@ func (e downloadEndpoint) Download(c *gin.Context) {
 
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.zip", download.DownloadName))
 	c.Data(http.StatusOK, "application/x-zip", data)
+}
+
+func (e downloadEndpoint) Get(c *gin.Context) {
+	user, err := utils.GetUser(c)
+	if err != nil {
+		return
+	}
+
+	// Decode the download id requested in query param
+	downloadId, err := utils.DecodeQueryId("downloadId", c)
+	if err != nil {
+		return
+	}
+
+	download, svcErr := e.downloadService.Get(downloadId)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	// Check that user can access this download
+	if download.Initiator.Hex() != user.Id.Hex() {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, download)
 }

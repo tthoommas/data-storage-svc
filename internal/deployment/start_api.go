@@ -78,6 +78,7 @@ func StartApi() {
 			download.POST("/init", downloadEndpoint.InitDownload)
 			download.GET("/isready", downloadEndpoint.IsReady)
 			download.GET("/download", downloadEndpoint.Download)
+			download.GET("/get", downloadEndpoint.Get)
 		}
 	}
 
