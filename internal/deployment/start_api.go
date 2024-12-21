@@ -22,18 +22,23 @@ func StartApi() {
 	mediaInAlbumRepository := repository.NewMediaInAlbumRepository(db)
 	mediaRepository := repository.NewMediaRepository(db)
 	userRepository := repository.NewUserRepository(db)
+	downloadRepository := repository.NewDownloadRepository(db)
+
 	// Create services
 	albumAccessService := services.NewAlbumAccessService(albumAccessRepository)
 	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService)
 	mediaAccessService := services.NewMediaAccessService(mediaAccessRepository)
 	mediaService := services.NewMediaService(mediaRepository, mediaAccessService, albumService)
 	userService := services.NewUserService(userRepository)
+	downloadService := services.NewDownloadService(albumRepository, downloadRepository, mediaRepository, mediaInAlbumRepository)
+
 	// Create middlewares
 	authMiddleware := middlewares.AuthMiddleware(userService)
 	// Create endpoints
 	albumEndpoint := endpoints.NewAlbumEndpoint(albumService, albumAccessService, mediaService, authMiddleware)
 	mediaEndpoint := endpoints.NewMediaEndpoint(mediaService, mediaAccessService, authMiddleware)
 	userEndpoint := endpoints.NewUserEndpoint(userService)
+	downloadEndpoint := endpoints.NewDownloadEndpoint(downloadService, albumAccessService)
 
 	// Public endpoints
 	public := router.Group("")
@@ -48,7 +53,6 @@ func StartApi() {
 	// Authorized endpoints (require login)
 	authorized := router.Group("", authMiddleware)
 	{
-
 		user := authorized.Group("/user")
 		{
 			user.POST("/logout", userEndpoint.Logout)
@@ -60,7 +64,6 @@ func StartApi() {
 			media.GET("/get", mediaEndpoint.Get)
 			media.DELETE("/delete", mediaEndpoint.Delete)
 		}
-
 		album := authorized.Group("/album")
 		{
 			album.POST("/create", albumEndpoint.Create)
@@ -69,6 +72,12 @@ func StartApi() {
 			album.GET("/getmedias", albumEndpoint.GetMedias)
 			album.GET("/get", albumEndpoint.Get)
 			album.DELETE("/delete", albumEndpoint.Delete)
+		}
+		download := authorized.Group("/download")
+		{
+			download.POST("/init", downloadEndpoint.InitDownload)
+			download.GET("/isready", downloadEndpoint.IsReady)
+			download.GET("/download", downloadEndpoint.Download)
 		}
 	}
 

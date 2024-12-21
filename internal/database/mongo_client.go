@@ -74,5 +74,4 @@ func configureMongoDb(client *mongo.Client, dbName string) {
 		Options: options.Index().SetUnique(true),
 	}
 	client.Database(dbName).Collection(repository.MEDIA_IN_ALBUM_COLLECTION).Indexes().CreateOne(context.Background(), uniqueMediaInAlbum)
-
 }

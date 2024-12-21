@@ -19,7 +19,7 @@ func GetDataDir(subPath string) (string, error) {
 	exists, err := pathExists(path)
 	if err != nil || !exists {
 		slog.Debug("Data path not found", "path", path)
-		return "", err
+		return "", fmt.Errorf("couldn't open data folder, or path does not exists")
 	}
 	return path, nil
 }
