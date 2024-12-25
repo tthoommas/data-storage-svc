@@ -22,6 +22,8 @@ type MediaInAlbumRepository interface {
 	UnlinkAlbumFromAllMedias(albumId *primitive.ObjectID) error
 	// List all medias in an album
 	ListAllMedias(albumId *primitive.ObjectID) ([]model.MediaInAlbum, error)
+	// Check if a given media in in a given album
+	IsInAlbum(mediaId *primitive.ObjectID, albumId *primitive.ObjectID) bool
 }
 
 type mediaInAlbumRepository struct {
@@ -74,4 +76,10 @@ func (r mediaInAlbumRepository) ListAllMedias(albumId *primitive.ObjectID) ([]mo
 		}
 	}
 	return mediasInAlbum, nil
+}
+
+func (r mediaInAlbumRepository) IsInAlbum(mediaId *primitive.ObjectID, albumId *primitive.ObjectID) bool {
+	filter := bson.M{"mediaId": mediaId, "albumId": albumId}
+	result := r.db.Collection(MEDIA_IN_ALBUM_COLLECTION).FindOne(context.Background(), filter)
+	return result.Err() == nil
 }

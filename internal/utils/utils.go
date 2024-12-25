@@ -2,6 +2,7 @@ package utils
 
 import (
 	"data-storage-svc/internal"
+	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
 	"errors"
 	"fmt"
@@ -70,4 +71,29 @@ func GetUser(request *gin.Context) (*model.User, error) {
 	} else {
 		return user, nil
 	}
+}
+
+func GetUserOrSharedLink(request *gin.Context) (*model.User, *model.SharedLink, error) {
+	rawUser, userExists := request.Get(common.USER)
+	rawSharedLink, linkExists := request.Get(common.SHARED_LINK)
+	if !userExists && !linkExists {
+		// No authenticated user and no link => unauthorized
+		request.AbortWithStatus(http.StatusUnauthorized)
+		return nil, nil, errors.New("couldn't find user nor token")
+	}
+	var user *model.User = nil
+	var sharedLink *model.SharedLink = nil
+
+	if userExists {
+		if typedUser, ok := rawUser.(*model.User); ok {
+			user = typedUser
+		}
+	}
+
+	if linkExists {
+		if typedLink, ok := rawSharedLink.(*model.SharedLink); ok {
+			sharedLink = typedLink
+		}
+	}
+	return user, sharedLink, nil
 }

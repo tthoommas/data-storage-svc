@@ -69,7 +69,7 @@ func (e mediaEndpoint) List(c *gin.Context) {
 }
 
 func (e mediaEndpoint) Get(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -84,7 +84,8 @@ func (e mediaEndpoint) Get(c *gin.Context) {
 	mediaQuality := model.ParseMediaQuality(c.DefaultQuery("quality", "medium"))
 
 	// Check if user can access this media
-	if !e.mediaAccessService.CanView(&user.Id, mediaId) {
+	if (user == nil || !e.mediaAccessService.CanView(&user.Id, mediaId)) &&
+		(sharedLink == nil || !e.mediaService.IsInAlbum(mediaId, &sharedLink.AlbumId)) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}

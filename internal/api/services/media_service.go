@@ -34,18 +34,21 @@ type MediaService interface {
 	GetAllUploadedByUser(userId *primitive.ObjectID) ([]model.Media, utils.ServiceError)
 	// Delete a specific media
 	Delete(mediaId *primitive.ObjectID) utils.ServiceError
+	// Check if a media is in a given album
+	IsInAlbum(mediaId *primitive.ObjectID, albumId *primitive.ObjectID) bool
 }
 
 type mediaService struct {
 	// Repository dependencies
-	mediaRepository repository.MediaRepository
+	mediaRepository        repository.MediaRepository
+	mediaInAblumRepository repository.MediaInAlbumRepository
 	// Service dependencies
 	mediaAccessService MediaAccessService
 	albumService       AlbumService
 }
 
-func NewMediaService(mediaRepository repository.MediaRepository, mediaAccessService MediaAccessService, albumService AlbumService) mediaService {
-	return mediaService{mediaRepository, mediaAccessService, albumService}
+func NewMediaService(mediaRepository repository.MediaRepository, mediaInAblumRepository repository.MediaInAlbumRepository, mediaAccessService MediaAccessService, albumService AlbumService) mediaService {
+	return mediaService{mediaRepository, mediaInAblumRepository, mediaAccessService, albumService}
 }
 
 func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
@@ -242,4 +245,8 @@ func (s mediaService) Delete(mediaId *primitive.ObjectID) utils.ServiceError {
 		return utils.NewServiceError(http.StatusInternalServerError, "unable to delete media")
 	}
 	return nil
+}
+
+func (s mediaService) IsInAlbum(mediaId *primitive.ObjectID, albumId *primitive.ObjectID) bool {
+	return s.mediaInAblumRepository.IsInAlbum(mediaId, albumId)
 }

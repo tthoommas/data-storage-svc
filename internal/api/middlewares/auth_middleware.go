@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/security"
 	"data-storage-svc/internal/api/services"
 	"log/slog"
@@ -12,10 +13,18 @@ import (
 
 func AuthMiddleware(userService services.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// If there is a shared link, user do not enforce user authentication
+		_, hasSharedLink := c.Get(common.SHARED_LINK)
 		authCookie, err := c.Cookie("jwt")
 		if err != nil || authCookie == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			return
+			if !hasSharedLink {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+				return
+			} else {
+				// Shared link present, do not reject the request now
+				c.Next()
+				return
+			}
 		}
 
 		tokenString := authCookie
@@ -24,9 +33,15 @@ func AuthMiddleware(userService services.UserService) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			slog.Debug("Couldn't validate JWT", "error", err, "tokenValidity", token.Valid)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			return
+			if !hasSharedLink {
+				slog.Debug("Couldn't validate JWT", "error", err, "tokenValidity", token.Valid)
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+				return
+			} else {
+				// Shared link is present
+				c.Next()
+				return
+			}
 		}
 
 		// Extract email claim
@@ -34,15 +49,22 @@ func AuthMiddleware(userService services.UserService) gin.HandlerFunc {
 			email := claims["email"].(string)
 			user, err := userService.GetByEmail(email)
 			if err != nil {
-				slog.Debug("couldn't find authenticated user", "email", email, "error", err)
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+				if !hasSharedLink {
+					slog.Debug("couldn't find authenticated user", "email", email, "error", err)
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+					return
+				} else {
+					c.Next()
+					return
+				}
+			}
+			c.Set(common.USER, user)
+		} else {
+			if !hasSharedLink {
+				slog.Debug("Couldn't find email claim in token")
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 				return
 			}
-			c.Set("user", user)
-		} else {
-			slog.Debug("Couldn't find email claim in token")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-			return
 		}
 
 		c.Next()

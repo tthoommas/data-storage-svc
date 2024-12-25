@@ -66,7 +66,7 @@ func (e albumEndpoint) Create(c *gin.Context) {
 }
 
 func (e albumEndpoint) Get(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -77,7 +77,8 @@ func (e albumEndpoint) Get(c *gin.Context) {
 	}
 
 	// Check that user has authorizations to view the album
-	if !e.albumAccessService.CanViewAlbum(&user.Id, albumId) {
+	if (user == nil || !e.albumAccessService.CanViewAlbum(&user.Id, albumId)) &&
+		(sharedLink == nil || sharedLink.AlbumId.Hex() != albumId.Hex()) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -108,7 +109,7 @@ func (e albumEndpoint) GetAll(c *gin.Context) {
 }
 
 func (e albumEndpoint) GetMedias(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -119,7 +120,8 @@ func (e albumEndpoint) GetMedias(c *gin.Context) {
 	}
 
 	// Check that the user is allowed to view this album
-	if !e.albumAccessService.CanViewAlbum(&user.Id, albumId) {
+	if (user == nil || !e.albumAccessService.CanViewAlbum(&user.Id, albumId)) &&
+		(sharedLink == nil || sharedLink.AlbumId.Hex() != albumId.Hex()) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -158,7 +160,7 @@ type AddMediaToAlbumBody struct {
 }
 
 func (e albumEndpoint) AddMedia(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -192,7 +194,8 @@ func (e albumEndpoint) AddMedia(c *gin.Context) {
 	}
 
 	// Check if user is allowed to edit the album
-	if !e.albumAccessService.CanEditAlbum(&user.Id, albumId) {
+	if (user == nil || !e.albumAccessService.CanEditAlbum(&user.Id, albumId)) &&
+		(sharedLink == nil || sharedLink.AlbumId.Hex() != albumId.Hex()) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}

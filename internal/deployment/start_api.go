@@ -23,22 +23,26 @@ func StartApi() {
 	mediaRepository := repository.NewMediaRepository(db)
 	userRepository := repository.NewUserRepository(db)
 	downloadRepository := repository.NewDownloadRepository(db)
+	sharedLinkRepository := repository.NewSharedLinkRepository(db)
 
 	// Create services
 	albumAccessService := services.NewAlbumAccessService(albumAccessRepository)
 	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService)
 	mediaAccessService := services.NewMediaAccessService(mediaAccessRepository)
-	mediaService := services.NewMediaService(mediaRepository, mediaAccessService, albumService)
+	mediaService := services.NewMediaService(mediaRepository, mediaInAlbumRepository, mediaAccessService, albumService)
 	userService := services.NewUserService(userRepository)
 	downloadService := services.NewDownloadService(albumRepository, downloadRepository, mediaRepository, mediaInAlbumRepository)
+	sharedLinkService := services.NewSharedLinkService(sharedLinkRepository, albumAccessRepository)
 
 	// Create middlewares
+	sharedLinkMiddleware := middlewares.SharedLinkMiddleware(sharedLinkRepository)
 	authMiddleware := middlewares.AuthMiddleware(userService)
 	// Create endpoints
 	albumEndpoint := endpoints.NewAlbumEndpoint(albumService, albumAccessService, mediaService, authMiddleware)
 	mediaEndpoint := endpoints.NewMediaEndpoint(mediaService, mediaAccessService, authMiddleware)
 	userEndpoint := endpoints.NewUserEndpoint(userService)
 	downloadEndpoint := endpoints.NewDownloadEndpoint(downloadService, albumAccessService)
+	sharedLinkEndpoint := endpoints.NewSharedLinkEndpoint(sharedLinkService, authMiddleware)
 
 	// Public endpoints
 	public := router.Group("")
@@ -61,16 +65,12 @@ func StartApi() {
 		{
 			media.POST("/upload", mediaEndpoint.Create)
 			media.GET("/list", mediaEndpoint.List)
-			media.GET("/get", mediaEndpoint.Get)
 			media.DELETE("/delete", mediaEndpoint.Delete)
 		}
 		album := authorized.Group("/album")
 		{
 			album.POST("/create", albumEndpoint.Create)
-			album.POST("/addmedia", albumEndpoint.AddMedia)
 			album.GET("/list", albumEndpoint.GetAll)
-			album.GET("/getmedias", albumEndpoint.GetMedias)
-			album.GET("/get", albumEndpoint.Get)
 			album.DELETE("/delete", albumEndpoint.Delete)
 		}
 		download := authorized.Group("/download")
@@ -79,6 +79,26 @@ func StartApi() {
 			download.GET("/isready", downloadEndpoint.IsReady)
 			download.GET("/download", downloadEndpoint.Download)
 			download.GET("/get", downloadEndpoint.Get)
+		}
+
+		sharedLink := authorized.Group("/sharedlink")
+		{
+			sharedLink.POST("/create", sharedLinkEndpoint.Create)
+		}
+	}
+
+	authorizedOrSharedLink := router.Group("", sharedLinkMiddleware, authMiddleware)
+	{
+		album := authorizedOrSharedLink.Group("/album")
+		{
+			album.POST("/addmedia", albumEndpoint.AddMedia)
+			album.GET("/get", albumEndpoint.Get)
+			album.GET("/getmedias", albumEndpoint.GetMedias)
+		}
+
+		media := authorizedOrSharedLink.Group("/media")
+		{
+			media.GET("/get", mediaEndpoint.Get)
 		}
 	}
 
