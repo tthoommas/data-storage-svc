@@ -14,8 +14,6 @@ import (
 type DownloadEndpoint interface {
 	// Init a download (ie. asynchronous zip file creation)
 	InitDownload(c *gin.Context)
-	// Check if a zip file is ready to be downloaded
-	IsReady(c *gin.Context)
 	// Download a previously created zip file
 	Download(c *gin.Context)
 	// Get a specifc download meta-data
@@ -27,8 +25,8 @@ type downloadEndpoint struct {
 	albumAccessService services.AlbumAccessService
 }
 
-func NewDownloadEndpoint(downloadService services.DownloadService, albumAccessService services.AlbumAccessService) DownloadEndpoint {
-	return downloadEndpoint{Endpoint: common.NewEndpoint("download", "/download", []gin.HandlerFunc{}), downloadService: downloadService, albumAccessService: albumAccessService}
+func NewDownloadEndpoint(permissionsManager common.PermissionsManager, downloadService services.DownloadService, albumAccessService services.AlbumAccessService) DownloadEndpoint {
+	return downloadEndpoint{Endpoint: common.NewEndpoint("download", "/download", []gin.HandlerFunc{}, permissionsManager), downloadService: downloadService, albumAccessService: albumAccessService}
 }
 
 type DownloadAlbumBody struct {
@@ -39,7 +37,7 @@ type DownloadAlbumBody struct {
 }
 
 func (e downloadEndpoint) InitDownload(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -58,9 +56,8 @@ func (e downloadEndpoint) InitDownload(c *gin.Context) {
 		return
 	}
 
-	// Check that the user can access this album
-	if !e.albumAccessService.CanViewAlbum(&user.Id, albumId) {
-		c.Status(http.StatusUnauthorized)
+	if !e.GetPermissionsManager().CanInitDownloadForAlbum(user, albumId, sharedLink) {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
@@ -76,33 +73,6 @@ func (e downloadEndpoint) InitDownload(c *gin.Context) {
 	} else {
 		c.AbortWithStatus(http.StatusNotImplemented)
 	}
-}
-
-func (e downloadEndpoint) IsReady(c *gin.Context) {
-	user, err := utils.GetUser(c)
-	if err != nil {
-		return
-	}
-
-	// Decode the download id requested in query param
-	downloadId, err := utils.DecodeQueryId("downloadId", c)
-	if err != nil {
-		return
-	}
-
-	download, svcErr := e.downloadService.Get(downloadId)
-	if svcErr != nil {
-		svcErr.Apply(c)
-		return
-	}
-
-	// Check that this user has created this download (downloads are private)
-	if download.Initiator.Hex() != user.Id.Hex() {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-
-	c.IndentedJSON(http.StatusOK, gin.H{"isReady": download.IsReady})
 }
 
 func (e downloadEndpoint) Download(c *gin.Context) {
@@ -122,8 +92,8 @@ func (e downloadEndpoint) Download(c *gin.Context) {
 		svcErr.Apply(c)
 		return
 	}
-	// Check that this user has created this download (downloads are private)
-	if download.Initiator.Hex() != user.Id.Hex() {
+
+	if !e.GetPermissionsManager().CanConsumeDownload(user, downloadId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -150,15 +120,14 @@ func (e downloadEndpoint) Get(c *gin.Context) {
 		return
 	}
 
-	download, svcErr := e.downloadService.Get(downloadId)
-	if svcErr != nil {
-		svcErr.Apply(c)
+	if !e.GetPermissionsManager().CanGetDownload(user, downloadId) {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	// Check that user can access this download
-	if download.Initiator.Hex() != user.Id.Hex() {
-		c.AbortWithStatus(http.StatusUnauthorized)
+	download, svcErr := e.downloadService.Get(downloadId)
+	if svcErr != nil {
+		svcErr.Apply(c)
 		return
 	}
 

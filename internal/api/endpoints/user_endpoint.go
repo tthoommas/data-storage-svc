@@ -21,8 +21,8 @@ type userEndpoint struct {
 	userService services.UserService
 }
 
-func NewUserEndpoint(userService services.UserService) UserEndpoint {
-	return userEndpoint{Endpoint: common.NewEndpoint("album", "/album", nil), userService: userService}
+func NewUserEndpoint(permissionsManager common.PermissionsManager, userService services.UserService) UserEndpoint {
+	return userEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{}, permissionsManager), userService: userService}
 }
 
 type RegisterUserBody struct {

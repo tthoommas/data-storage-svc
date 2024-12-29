@@ -14,7 +14,15 @@ import (
 
 type SharedLinkService interface {
 	// Create a new shared link for the given album id
-	Create(albumId primitive.ObjectID, createdBy primitive.ObjectID) (*model.SharedLink, utils.ServiceError)
+	Create(albumId primitive.ObjectID, createdBy primitive.ObjectID, expirationDate time.Time, canEdit bool) (*model.SharedLink, utils.ServiceError)
+	// List all shared link for the given album id
+	List(albumId primitive.ObjectID) ([]model.SharedLink, utils.ServiceError)
+	// Get a shared link id by its token
+	GetByToken(token string) (*model.SharedLink, utils.ServiceError)
+	// Delete a given shared link
+	Delete(sharedLinkId primitive.ObjectID) utils.ServiceError
+	// Update an existing shared link
+	Update(sharedLinkId primitive.ObjectID, canEdit bool) utils.ServiceError
 }
 
 type sharedLinkService struct {
@@ -28,7 +36,7 @@ func NewSharedLinkService(sharedLinkRepository repository.SharedLinkRepository, 
 	return sharedLinkService{sharedLinkRepository: sharedLinkRepository, albumAccessRepository: albumAccessRepository}
 }
 
-func (s sharedLinkService) Create(albumId primitive.ObjectID, createdBy primitive.ObjectID) (*model.SharedLink, utils.ServiceError) {
+func (s sharedLinkService) Create(albumId primitive.ObjectID, createdBy primitive.ObjectID, expirationDate time.Time, canEdit bool) (*model.SharedLink, utils.ServiceError) {
 	access, err := s.albumAccessRepository.Get(&createdBy, &albumId)
 	if err != nil || access == nil {
 		return nil, utils.NewServiceError(http.StatusUnauthorized, "cannot create a shared link for this album")
@@ -37,7 +45,7 @@ func (s sharedLinkService) Create(albumId primitive.ObjectID, createdBy primitiv
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't create the shared link")
 	}
-	newLink := model.SharedLink{AlbumId: albumId, CreatedBy: createdBy, CreatedAt: time.Now(), Token: token}
+	newLink := model.SharedLink{AlbumId: albumId, CreatedBy: createdBy, CreatedAt: time.Now(), Token: token, ExpirationDate: expirationDate, CanEdit: canEdit}
 	_, err = s.sharedLinkRepository.Create(&newLink)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't create the shared link")
@@ -60,4 +68,35 @@ func generateRandomString(length int) (string, error) {
 
 	// Encode to base64 and truncate to the required length
 	return base64.RawURLEncoding.EncodeToString(randomBytes)[:length], nil
+}
+
+func (s sharedLinkService) List(albumId primitive.ObjectID) ([]model.SharedLink, utils.ServiceError) {
+	result, err := s.sharedLinkRepository.List(&albumId)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find shared links")
+	}
+	return result, nil
+}
+
+func (s sharedLinkService) GetByToken(token string) (*model.SharedLink, utils.ServiceError) {
+	sharedLink, err := s.sharedLinkRepository.GetByToken(token)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusNotFound, "couldn't find the shared link")
+	}
+	return sharedLink, nil
+}
+
+func (s sharedLinkService) Delete(sharedLinkId primitive.ObjectID) utils.ServiceError {
+	if err := s.sharedLinkRepository.Delete(sharedLinkId); err != nil {
+		return utils.NewServiceError(http.StatusInternalServerError, "couldn't delete shared link")
+	}
+	return nil
+}
+
+func (s sharedLinkService) Update(sharedLinkId primitive.ObjectID, canEdit bool) utils.ServiceError {
+	err := s.sharedLinkRepository.Update(sharedLinkId, canEdit)
+	if err != nil {
+		return utils.NewServiceError(http.StatusInternalServerError, "couldn't update shared link")
+	}
+	return nil
 }

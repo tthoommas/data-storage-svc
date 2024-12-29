@@ -17,6 +17,8 @@ type UserService interface {
 	Create(email string, password string) (*primitive.ObjectID, utils.ServiceError)
 	// Get by email
 	GetByEmail(email string) (*model.User, utils.ServiceError)
+	// Get by id
+	GetById(userId primitive.ObjectID) (*model.User, utils.ServiceError)
 	// Generates a JWT token for the given user
 	GenerateToken(email string, password string) (*string, utils.ServiceError)
 }
@@ -84,4 +86,12 @@ func (s userService) GenerateToken(email string, password string) (*string, util
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't not generate token")
 	}
 	return &jwt, nil
+}
+
+func (s userService) GetById(userId primitive.ObjectID) (*model.User, utils.ServiceError) {
+	user, err := s.userRepository.GetById(&userId)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusNotFound, "couldn't find user")
+	}
+	return user, nil
 }

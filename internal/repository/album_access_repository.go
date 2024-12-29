@@ -21,6 +21,8 @@ type AlbumAccessRepository interface {
 	RemoveAllAccesses(albumId *primitive.ObjectID) error
 	// Get all album accesses associated to a given user id
 	GetAllByUser(userId *primitive.ObjectID) ([]model.UserAlbumAccess, error)
+	// Get all album accesses associated to a given album id
+	GetAllByAlbum(albumId *primitive.ObjectID) ([]model.UserAlbumAccess, error)
 	// Get a specific album access for a given userId and albumId
 	Get(userId *primitive.ObjectID, albumId *primitive.ObjectID) (*model.UserAlbumAccess, error)
 }
@@ -104,4 +106,26 @@ func (r albumAccessRepository) Get(userId *primitive.ObjectID, albumId *primitiv
 		return nil, err
 	}
 	return &albumAccess, nil
+}
+
+func (r albumAccessRepository) GetAllByAlbum(albumId *primitive.ObjectID) ([]model.UserAlbumAccess, error) {
+	filter := bson.M{"albumId": albumId}
+	cursor, err := r.db.Collection(USER_ALBUM_ACCESS_COLLECTION).Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cursor.Close(context.Background())
+
+	var userAlbumAccesses []model.UserAlbumAccess = make([]model.UserAlbumAccess, 0)
+	for cursor.Next(context.Background()) {
+		var userAlbumAccess model.UserAlbumAccess
+		if err = cursor.Decode(&userAlbumAccess); err != nil {
+			slog.Error("Couldn't decode album", "error", err)
+		} else {
+			userAlbumAccesses = append(userAlbumAccesses, userAlbumAccess)
+		}
+	}
+
+	return userAlbumAccesses, nil
 }

@@ -4,7 +4,6 @@ import (
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
-	"log/slog"
 	"net/http"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -13,14 +12,14 @@ import (
 type AlbumAccessService interface {
 	// Grant access to an album for a given user
 	GrantAccess(userId *primitive.ObjectID, albumId *primitive.ObjectID, canEdit bool) utils.ServiceError
-	// Check if a given user has permissions to view a given album
-	CanViewAlbum(userId *primitive.ObjectID, albumId *primitive.ObjectID) bool
-	// Check if a given user has permissions to edit a given album
-	CanEditAlbum(userId *primitive.ObjectID, albumId *primitive.ObjectID) bool
 	// Get all album access authorizations for a given user
 	GetAllForUser(userId *primitive.ObjectID) ([]model.UserAlbumAccess, error)
+	// Revoke access for the given user and given album
+	RevokeAccess(userId *primitive.ObjectID, albumId *primitive.ObjectID) utils.ServiceError
 	// Revoke all accesses granted to users to access or edit this album
 	RevokeAllAccesses(albumId *primitive.ObjectID) error
+	// List all accesses granted for a given album
+	GetAllAccesses(albumId *primitive.ObjectID) ([]model.UserAlbumAccess, utils.ServiceError)
 }
 
 type albumAccessService struct {
@@ -39,28 +38,25 @@ func (s albumAccessService) GrantAccess(userId *primitive.ObjectID, albumId *pri
 	return nil
 }
 
-func (s albumAccessService) CanViewAlbum(userId *primitive.ObjectID, albumId *primitive.ObjectID) bool {
-	userAlbumAccess, err := s.albumAccessRepository.Get(userId, albumId)
-	if err != nil {
-		slog.Debug("can view album error", "error", err)
-		return false
-	}
-	return userAlbumAccess != nil
-}
-
-func (s albumAccessService) CanEditAlbum(userId *primitive.ObjectID, albumId *primitive.ObjectID) bool {
-	userAlbumAccess, err := s.albumAccessRepository.Get(userId, albumId)
-	if err != nil {
-		slog.Debug("can view album error", "error", err)
-		return false
-	}
-	return userAlbumAccess != nil && userAlbumAccess.CanEdit
-}
-
 func (s albumAccessService) GetAllForUser(userId *primitive.ObjectID) ([]model.UserAlbumAccess, error) {
 	return s.albumAccessRepository.GetAllByUser(userId)
 }
 
+func (s albumAccessService) RevokeAccess(userId *primitive.ObjectID, albumId *primitive.ObjectID) utils.ServiceError {
+	if err := s.albumAccessRepository.Remove(userId, albumId); err != nil {
+		return utils.NewServiceError(http.StatusNotFound, "couldn't revoke access")
+	}
+	return nil
+}
+
 func (s albumAccessService) RevokeAllAccesses(albumId *primitive.ObjectID) error {
 	return s.albumAccessRepository.RemoveAllAccesses(albumId)
+}
+
+func (s albumAccessService) GetAllAccesses(albumId *primitive.ObjectID) ([]model.UserAlbumAccess, utils.ServiceError) {
+	accesses, err := s.albumAccessRepository.GetAllByAlbum(albumId)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find album accesses")
+	}
+	return accesses, nil
 }

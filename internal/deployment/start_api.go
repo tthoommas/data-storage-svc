@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/endpoints"
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
@@ -27,7 +28,7 @@ func StartApi() {
 
 	// Create services
 	albumAccessService := services.NewAlbumAccessService(albumAccessRepository)
-	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService)
+	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService, sharedLinkRepository)
 	mediaAccessService := services.NewMediaAccessService(mediaAccessRepository)
 	mediaService := services.NewMediaService(mediaRepository, mediaInAlbumRepository, mediaAccessService, albumService)
 	userService := services.NewUserService(userRepository)
@@ -37,12 +38,15 @@ func StartApi() {
 	// Create middlewares
 	sharedLinkMiddleware := middlewares.SharedLinkMiddleware(sharedLinkRepository)
 	authMiddleware := middlewares.AuthMiddleware(userService)
+
+	permissionManager := common.NewPermissionsManager(albumAccessRepository, albumRepository, downloadRepository, mediaAccessRepository, mediaInAlbumRepository, mediaRepository)
 	// Create endpoints
-	albumEndpoint := endpoints.NewAlbumEndpoint(albumService, albumAccessService, mediaService, authMiddleware)
-	mediaEndpoint := endpoints.NewMediaEndpoint(mediaService, mediaAccessService, authMiddleware)
-	userEndpoint := endpoints.NewUserEndpoint(userService)
-	downloadEndpoint := endpoints.NewDownloadEndpoint(downloadService, albumAccessService)
-	sharedLinkEndpoint := endpoints.NewSharedLinkEndpoint(sharedLinkService, authMiddleware)
+	albumEndpoint := endpoints.NewAlbumEndpoint(permissionManager, albumService, albumAccessService, mediaService, authMiddleware, userService)
+	mediaEndpoint := endpoints.NewMediaEndpoint(permissionManager, mediaService, mediaAccessService, authMiddleware)
+	userEndpoint := endpoints.NewUserEndpoint(permissionManager, userService)
+	downloadEndpoint := endpoints.NewDownloadEndpoint(permissionManager, downloadService, albumAccessService)
+	sharedLinkEndpoint := endpoints.NewSharedLinkEndpoint(permissionManager, sharedLinkService, authMiddleware, albumService)
+	permissionsEndpoint := endpoints.NewPermissionsEndpoint(permissionManager)
 
 	// Public endpoints
 	public := router.Group("")
@@ -72,11 +76,13 @@ func StartApi() {
 			album.POST("/create", albumEndpoint.Create)
 			album.GET("/list", albumEndpoint.GetAll)
 			album.DELETE("/delete", albumEndpoint.Delete)
+			album.GET("/sharedwith", albumEndpoint.SharedWith)
+			album.POST("/access", albumEndpoint.Access)
+			album.DELETE("/access", albumEndpoint.Access)
 		}
 		download := authorized.Group("/download")
 		{
 			download.POST("/init", downloadEndpoint.InitDownload)
-			download.GET("/isready", downloadEndpoint.IsReady)
 			download.GET("/download", downloadEndpoint.Download)
 			download.GET("/get", downloadEndpoint.Get)
 		}
@@ -84,6 +90,13 @@ func StartApi() {
 		sharedLink := authorized.Group("/sharedlink")
 		{
 			sharedLink.POST("/create", sharedLinkEndpoint.Create)
+			sharedLink.GET("/list", sharedLinkEndpoint.List)
+			sharedLink.DELETE("/delete", sharedLinkEndpoint.Delete)
+			sharedLink.PATCH("/update", sharedLinkEndpoint.Update)
+		}
+		permissions := authorized.Group("/permission")
+		{
+			permissions.GET("/canDeleteAlbum", permissionsEndpoint.CanDeleteAlbum)
 		}
 	}
 

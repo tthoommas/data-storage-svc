@@ -27,13 +27,18 @@ type mediaEndpoint struct {
 	mediaAccessService services.MediaAccessService
 }
 
-func NewMediaEndpoint(mediaService services.MediaService, mediaAccessService services.MediaAccessService, authMiddleware gin.HandlerFunc) MediaEndpoint {
-	return mediaEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{authMiddleware}), mediaService: mediaService, mediaAccessService: mediaAccessService}
+func NewMediaEndpoint(permissionsManager common.PermissionsManager, mediaService services.MediaService, mediaAccessService services.MediaAccessService, authMiddleware gin.HandlerFunc) MediaEndpoint {
+	return mediaEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{authMiddleware}, permissionsManager), mediaService: mediaService, mediaAccessService: mediaAccessService}
 }
 
 func (e mediaEndpoint) Create(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
+		return
+	}
+
+	if !e.GetPermissionsManager().CanCreateMedia(user) {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
@@ -83,9 +88,7 @@ func (e mediaEndpoint) Get(c *gin.Context) {
 	// Decode the requested size in query param (if any)
 	mediaQuality := model.ParseMediaQuality(c.DefaultQuery("quality", "medium"))
 
-	// Check if user can access this media
-	if (user == nil || !e.mediaAccessService.CanView(&user.Id, mediaId)) &&
-		(sharedLink == nil || !e.mediaService.IsInAlbum(mediaId, &sharedLink.AlbumId)) {
+	if !e.GetPermissionsManager().CanGetMedia(user, mediaId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -125,8 +128,7 @@ func (e mediaEndpoint) Delete(c *gin.Context) {
 		return
 	}
 
-	// Only the owner can delete a media
-	if *media.UploadedBy != user.Id {
+	if !e.GetPermissionsManager().CanDeleteMedia(user, mediaId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}

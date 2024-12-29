@@ -25,12 +25,17 @@ type AlbumEndpoint interface {
 	AddMedia(c *gin.Context)
 	// Delete an album (not the underlying medias)
 	Delete(c *gin.Context)
+	// Return the list of users who can access this album
+	SharedWith(c *gin.Context)
+	// Modify access to the album for the given user
+	Access(c *gin.Context)
 }
 type albumEndpoint struct {
 	common.Endpoint
 	albumService       services.AlbumService
 	albumAccessService services.AlbumAccessService
 	mediaService       services.MediaService
+	userService        services.UserService
 }
 
 type CreateAlbumBody struct {
@@ -38,8 +43,8 @@ type CreateAlbumBody struct {
 	AlbumDescription string `json:"albumDescription"`
 }
 
-func NewAlbumEndpoint(albumService services.AlbumService, albumAccessService services.AlbumAccessService, mediaService services.MediaService, authMiddleware gin.HandlerFunc) AlbumEndpoint {
-	return albumEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{authMiddleware}), albumService: albumService, albumAccessService: albumAccessService, mediaService: mediaService}
+func NewAlbumEndpoint(permissionsManager common.PermissionsManager, albumService services.AlbumService, albumAccessService services.AlbumAccessService, mediaService services.MediaService, authMiddleware gin.HandlerFunc, userService services.UserService) AlbumEndpoint {
+	return albumEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{authMiddleware}, permissionsManager), albumService: albumService, albumAccessService: albumAccessService, mediaService: mediaService, userService: userService}
 }
 
 func (e albumEndpoint) Create(c *gin.Context) {
@@ -51,6 +56,11 @@ func (e albumEndpoint) Create(c *gin.Context) {
 	if err := c.BindJSON(&createAlbumBody); err != nil {
 		slog.Debug("Couldn't decode create album body", "error", err)
 		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	if !e.GetPermissionsManager().CanCreateAlbum(user) {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
@@ -77,8 +87,7 @@ func (e albumEndpoint) Get(c *gin.Context) {
 	}
 
 	// Check that user has authorizations to view the album
-	if (user == nil || !e.albumAccessService.CanViewAlbum(&user.Id, albumId)) &&
-		(sharedLink == nil || sharedLink.AlbumId.Hex() != albumId.Hex()) {
+	if !e.GetPermissionsManager().CanGetAlbum(user, albumId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -120,8 +129,7 @@ func (e albumEndpoint) GetMedias(c *gin.Context) {
 	}
 
 	// Check that the user is allowed to view this album
-	if (user == nil || !e.albumAccessService.CanViewAlbum(&user.Id, albumId)) &&
-		(sharedLink == nil || sharedLink.AlbumId.Hex() != albumId.Hex()) {
+	if !e.GetPermissionsManager().CanGetAllMediasForAlbum(user, albumId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -194,8 +202,7 @@ func (e albumEndpoint) AddMedia(c *gin.Context) {
 	}
 
 	// Check if user is allowed to edit the album
-	if (user == nil || !e.albumAccessService.CanEditAlbum(&user.Id, albumId)) &&
-		(sharedLink == nil || sharedLink.AlbumId.Hex() != albumId.Hex()) {
+	if !e.GetPermissionsManager().CanAddMediaToAlbum(user, albumId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -222,22 +229,123 @@ func (e albumEndpoint) Delete(c *gin.Context) {
 		return
 	}
 
-	album, svcErr := e.albumService.GetAlbumById(albumId)
-	if svcErr != nil {
-		svcErr.Apply(c)
-		return
-	}
-
 	// Only the author can delete the album
-	if *album.AuthorId != user.Id {
+	if !e.GetPermissionsManager().CanDeleteAlbum(user, albumId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	svcErr = e.albumService.Delete(albumId)
+	svcErr := e.albumService.Delete(albumId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (e albumEndpoint) SharedWith(c *gin.Context) {
+	user, err := utils.GetUser(c)
+	if err != nil {
+		return
+	}
+	albumId, err := utils.DecodeQueryId("albumId", c)
+	if err != nil {
+		return
+	}
+
+	if !e.GetPermissionsManager().CanListAlbumAccesses(user, albumId) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	accesses, svcErr := e.albumAccessService.GetAllAccesses(albumId)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	type Result struct {
+		Email   string `json:"email"`
+		CanEdit bool   `json:"canEdit"`
+	}
+
+	var result []Result = make([]Result, 0)
+
+	for _, access := range accesses {
+		userShared, err := e.userService.GetById(*access.UserId)
+		if err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		// Do not include the user's access as it is implicit
+		if userShared.Id.Hex() != user.Id.Hex() {
+			result = append(result, Result{Email: userShared.Email, CanEdit: access.CanEdit})
+		}
+	}
+
+	c.IndentedJSON(http.StatusOK, result)
+}
+
+type AccessBody struct {
+	AlbumId   string `json:"albumId"`
+	UserEmail string `json:"email"`
+	AllowEdit bool   `json:"allowEdit,omitempty"`
+}
+
+func (e albumEndpoint) Access(c *gin.Context) {
+	user, err := utils.GetUser(c)
+	if err != nil {
+		return
+	}
+
+	var accessBody AccessBody
+	if err := c.BindJSON(&accessBody); err != nil {
+		slog.Debug("Couldn't decode body", "error", err)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	albumId, svcErr := utils.DecodeBodyId(accessBody.AlbumId)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	if !e.GetPermissionsManager().CanEditAlbumAccesses(user, albumId) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Get user to share/unshare the album with
+	userToShareWith, svcErr := e.userService.GetByEmail(accessBody.UserEmail)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	// Cannot change the owner's access
+	if userToShareWith.Id.Hex() == user.Id.Hex() {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	if c.Request.Method == "POST" {
+		// Create/modify the access
+		svcErr = e.albumAccessService.GrantAccess(&userToShareWith.Id, albumId, accessBody.AllowEdit)
+		if svcErr != nil {
+			svcErr.Apply(c)
+			return
+		}
+	} else if c.Request.Method == "DELETE" {
+		// Revoke an existing access
+		svcErr = e.albumAccessService.RevokeAccess(&userToShareWith.Id, albumId)
+		if svcErr != nil {
+			svcErr.Apply(c)
+			return
+		}
+	} else {
+		c.AbortWithStatus(http.StatusBadRequest)
+	}
+
+	c.Status(http.StatusOK)
 }

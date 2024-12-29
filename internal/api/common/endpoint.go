@@ -6,6 +6,7 @@ type Endpoint interface {
 	GetEndpointName() string
 	GetEndpointBaseUrl() string
 	GetMiddlewares() []gin.HandlerFunc
+	GetPermissionsManager() PermissionsManager
 }
 
 type endpoint struct {
@@ -15,10 +16,12 @@ type endpoint struct {
 	endpointBaseUrl string
 	// The list of middleware required for the endpoint
 	middlewares []gin.HandlerFunc
+	// The permissions manager injected in all endpoints
+	permissionsManager PermissionsManager
 }
 
-func NewEndpoint(name string, baseUrl string, middlewares []gin.HandlerFunc) Endpoint {
-	return endpoint{}
+func NewEndpoint(name string, baseUrl string, middlewares []gin.HandlerFunc, permissionManager PermissionsManager) Endpoint {
+	return endpoint{endpointName: name, endpointBaseUrl: baseUrl, middlewares: middlewares, permissionsManager: permissionManager}
 }
 
 func (e endpoint) GetEndpointName() string {
@@ -31,4 +34,8 @@ func (e endpoint) GetEndpointBaseUrl() string {
 
 func (e endpoint) GetMiddlewares() []gin.HandlerFunc {
 	return e.middlewares
+}
+
+func (e endpoint) GetPermissionsManager() PermissionsManager {
+	return e.permissionsManager
 }

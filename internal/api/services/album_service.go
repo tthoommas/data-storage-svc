@@ -30,12 +30,14 @@ type albumService struct {
 	// Repository dependencies
 	albumRepository        repository.AlbumRepository
 	mediaInAlbumRepository repository.MediaInAlbumRepository
+	sharedLinkRepository   repository.SharedLinkRepository
+
 	// Service dependencies
 	albumAccessService AlbumAccessService
 }
 
-func NewAlbumService(albumRepository repository.AlbumRepository, mediaInAlbumRepository repository.MediaInAlbumRepository, albumAccessService AlbumAccessService) albumService {
-	return albumService{albumRepository, mediaInAlbumRepository, albumAccessService}
+func NewAlbumService(albumRepository repository.AlbumRepository, mediaInAlbumRepository repository.MediaInAlbumRepository, albumAccessService AlbumAccessService, sharedLinkRepository repository.SharedLinkRepository) albumService {
+	return albumService{albumRepository, mediaInAlbumRepository, sharedLinkRepository, albumAccessService}
 }
 
 func (s albumService) Create(album *model.Album) (*primitive.ObjectID, utils.ServiceError) {
@@ -114,6 +116,14 @@ func (s albumService) Delete(albumId *primitive.ObjectID) utils.ServiceError {
 	err = s.albumAccessService.RevokeAllAccesses(albumId)
 	if err != nil {
 		return utils.NewServiceError(http.StatusInternalServerError, "couldn't delete album")
+	}
+	// Remove all shared links pointing to this album
+	sharedLinks, err := s.sharedLinkRepository.List(albumId)
+	if err != nil {
+		return utils.NewServiceError(http.StatusInternalServerError, "couldn't delete album")
+	}
+	for _, sharedLink := range sharedLinks {
+		s.sharedLinkRepository.Delete(sharedLink.Id)
 	}
 	// Finally remove the album
 	err = s.albumRepository.Delete(albumId)
