@@ -12,6 +12,7 @@ import (
 )
 
 type DownloadEndpoint interface {
+	common.EndpointGroup
 	// Init a download (ie. asynchronous zip file creation)
 	InitDownload(c *gin.Context)
 	// Download a previously created zip file
@@ -20,13 +21,39 @@ type DownloadEndpoint interface {
 	Get(c *gin.Context)
 }
 type downloadEndpoint struct {
-	common.Endpoint
+	common.EndpointGroup
 	downloadService    services.DownloadService
 	albumAccessService services.AlbumAccessService
 }
 
-func NewDownloadEndpoint(permissionsManager common.PermissionsManager, downloadService services.DownloadService, albumAccessService services.AlbumAccessService) DownloadEndpoint {
-	return downloadEndpoint{Endpoint: common.NewEndpoint("download", "/download", []gin.HandlerFunc{}, permissionsManager), downloadService: downloadService, albumAccessService: albumAccessService}
+func NewDownloadEndpoint(
+	// Common dependencies
+	commonMiddlewares []gin.HandlerFunc,
+	permissionsManager common.PermissionsManager,
+	// Service dependencies
+	downloadService services.DownloadService,
+	albumAccessService services.AlbumAccessService,
+) DownloadEndpoint {
+	downloadEndpoint := downloadEndpoint{
+		downloadService:    downloadService,
+		albumAccessService: albumAccessService,
+	}
+
+	endpoint := common.NewEndpoint(
+		"Downloads",
+		"/download",
+		commonMiddlewares,
+		map[common.MethodPath][]gin.HandlerFunc{
+			// Common album edition actions
+			{Method: "POST", Path: "/"}:                {downloadEndpoint.InitDownload},
+			{Method: "GET", Path: "/:downloadId/meta"}: {downloadEndpoint.Get},
+			{Method: "GET", Path: "/:downloadId/data"}: {downloadEndpoint.Download},
+		},
+		permissionsManager,
+	)
+
+	downloadEndpoint.EndpointGroup = endpoint
+	return downloadEndpoint
 }
 
 type DownloadAlbumBody struct {

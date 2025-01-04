@@ -12,6 +12,7 @@ import (
 )
 
 type SharedLinkEndpoint interface {
+	common.EndpointGroup
 	// Create a new shared link
 	Create(c *gin.Context)
 	// List all shared links for a given album
@@ -22,13 +23,40 @@ type SharedLinkEndpoint interface {
 	Update(c *gin.Context)
 }
 type sharedLinkEndpoint struct {
-	common.Endpoint
+	common.EndpointGroup
 	sharedLinkService services.SharedLinkService
 	albumService      services.AlbumService
 }
 
-func NewSharedLinkEndpoint(permissionsManager common.PermissionsManager, sharedLinkService services.SharedLinkService, authMiddleware gin.HandlerFunc, albumService services.AlbumService) SharedLinkEndpoint {
-	return sharedLinkEndpoint{Endpoint: common.NewEndpoint("sharedlink", "/sharedlink", []gin.HandlerFunc{authMiddleware}, permissionsManager), sharedLinkService: sharedLinkService, albumService: albumService}
+func NewSharedLinkEndpoint(
+	// Common dependencies
+	commonMiddlewares []gin.HandlerFunc,
+	permissionsManager common.PermissionsManager,
+	//Services dependencies
+	sharedLinkService services.SharedLinkService,
+	albumService services.AlbumService,
+) SharedLinkEndpoint {
+	sharedLinkEndpoint := sharedLinkEndpoint{
+		sharedLinkService: sharedLinkService,
+		albumService:      albumService,
+	}
+
+	endpoint := common.NewEndpoint(
+		"Shared links",
+		"/sharedlink",
+		commonMiddlewares,
+		map[common.MethodPath][]gin.HandlerFunc{
+			// Common album edition actions
+			{Method: "POST", Path: "/"}:                {sharedLinkEndpoint.Create},
+			{Method: "GET", Path: "/"}:                 {sharedLinkEndpoint.List},
+			{Method: "DELETE", Path: "/:sharedLinkId"}: {sharedLinkEndpoint.Delete},
+			{Method: "PATCH", Path: "/:sharedLinkId"}:  {sharedLinkEndpoint.Update},
+		},
+		permissionsManager,
+	)
+
+	sharedLinkEndpoint.EndpointGroup = endpoint
+	return sharedLinkEndpoint
 }
 
 type CreateBody struct {

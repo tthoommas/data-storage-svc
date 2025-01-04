@@ -9,6 +9,7 @@ import (
 )
 
 type UserEndpoint interface {
+	common.EndpointGroup
 	// Create (register) a new user
 	Create(c *gin.Context)
 	// Fetch a JWT token to authenticate user
@@ -17,12 +18,33 @@ type UserEndpoint interface {
 	Logout(c *gin.Context)
 }
 type userEndpoint struct {
-	common.Endpoint
+	common.EndpointGroup
 	userService services.UserService
 }
 
-func NewUserEndpoint(permissionsManager common.PermissionsManager, userService services.UserService) UserEndpoint {
-	return userEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{}, permissionsManager), userService: userService}
+func NewUserEndpoint(
+	// Common dependencies
+	commonMiddlewares []gin.HandlerFunc,
+	permissionsManager common.PermissionsManager,
+	// Service dependencies
+	userService services.UserService,
+) UserEndpoint {
+	userEndpoint := userEndpoint{userService: userService}
+
+	endpoint := common.NewEndpoint(
+		"Users",
+		"/user",
+		commonMiddlewares,
+		map[common.MethodPath][]gin.HandlerFunc{
+			{Method: "POST", Path: "/"}:           {userEndpoint.Create},
+			{Method: "GET", Path: "/:userId/jwt"}: {userEndpoint.FetchToken},
+			{Method: "POST", Path: "/logout"}:     {userEndpoint.Logout},
+		},
+		permissionsManager,
+	)
+
+	userEndpoint.EndpointGroup = endpoint
+	return userEndpoint
 }
 
 type RegisterUserBody struct {

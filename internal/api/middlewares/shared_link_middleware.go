@@ -9,7 +9,7 @@ import (
 
 func SharedLinkMiddleware(sharedLinkRepository repository.SharedLinkRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if we have a shared token
+		// Check if we have a token in the request
 		sharedLinkToken := c.Query("token")
 		if sharedLinkToken != "" {
 			link, err := sharedLinkRepository.GetByToken(sharedLinkToken)

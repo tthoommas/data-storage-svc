@@ -13,10 +13,11 @@ import (
 )
 
 type AlbumEndpoint interface {
+	common.EndpointGroup
 	// Create an album
 	Create(c *gin.Context)
 	// Get a specific album, by id
-	Get(c *gin.Context)
+	GetOne(c *gin.Context)
 	// Get all albums accessible for the user
 	GetAll(c *gin.Context)
 	// Get all medias in the given album
@@ -26,12 +27,12 @@ type AlbumEndpoint interface {
 	// Delete an album (not the underlying medias)
 	Delete(c *gin.Context)
 	// Return the list of users who can access this album
-	SharedWith(c *gin.Context)
+	GetAllAccesses(c *gin.Context)
 	// Modify access to the album for the given user
-	Access(c *gin.Context)
+	CreateAccess(c *gin.Context)
 }
 type albumEndpoint struct {
-	common.Endpoint
+	common.EndpointGroup
 	albumService       services.AlbumService
 	albumAccessService services.AlbumAccessService
 	mediaService       services.MediaService
@@ -43,8 +44,47 @@ type CreateAlbumBody struct {
 	AlbumDescription string `json:"albumDescription"`
 }
 
-func NewAlbumEndpoint(permissionsManager common.PermissionsManager, albumService services.AlbumService, albumAccessService services.AlbumAccessService, mediaService services.MediaService, authMiddleware gin.HandlerFunc, userService services.UserService) AlbumEndpoint {
-	return albumEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{authMiddleware}, permissionsManager), albumService: albumService, albumAccessService: albumAccessService, mediaService: mediaService, userService: userService}
+func NewAlbumEndpoint(
+	// Common dependencies
+	commonMiddlewares []gin.HandlerFunc,
+	permissionsManager common.PermissionsManager,
+	// Service dependencies
+	albumService services.AlbumService,
+	albumAccessService services.AlbumAccessService,
+	mediaService services.MediaService,
+	userService services.UserService,
+) AlbumEndpoint {
+
+	albumEndpoint := albumEndpoint{
+		albumService:       albumService,
+		albumAccessService: albumAccessService,
+		mediaService:       mediaService,
+		userService:        userService,
+	}
+
+	endpoint := common.NewEndpoint(
+		"Albums",
+		"/album",
+		commonMiddlewares,
+		map[common.MethodPath][]gin.HandlerFunc{
+			// Common album meta-data edition actions
+			{Method: "POST", Path: "/"}:           {albumEndpoint.Create},
+			{Method: "GET", Path: "/"}:            {albumEndpoint.GetAll},
+			{Method: "GET", Path: "/:albumId"}:    {albumEndpoint.GetOne},
+			{Method: "DELETE", Path: "/:albumId"}: {albumEndpoint.Delete},
+			// Album media edition action
+			{Method: "PUT", Path: "/:albumId/media"}: {albumEndpoint.AddMedia},
+			{Method: "GET", Path: "/:albumId/media"}: {albumEndpoint.GetMedias},
+			// Album access management actions
+			{Method: "GET", Path: "/:albumId/access"}:    {albumEndpoint.GetAllAccesses},
+			{Method: "POST", Path: "/:albumId/access"}:   {albumEndpoint.CreateAccess},
+			{Method: "DELETE", Path: "/:albumId/access"}: {albumEndpoint.CreateAccess},
+		},
+		permissionsManager,
+	)
+
+	albumEndpoint.EndpointGroup = endpoint
+	return albumEndpoint
 }
 
 func (e albumEndpoint) Create(c *gin.Context) {
@@ -75,7 +115,7 @@ func (e albumEndpoint) Create(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, gin.H{"albumId": createdId})
 }
 
-func (e albumEndpoint) Get(c *gin.Context) {
+func (e albumEndpoint) GetOne(c *gin.Context) {
 	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
@@ -243,7 +283,7 @@ func (e albumEndpoint) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (e albumEndpoint) SharedWith(c *gin.Context) {
+func (e albumEndpoint) GetAllAccesses(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
@@ -292,7 +332,7 @@ type AccessBody struct {
 	AllowEdit bool   `json:"allowEdit,omitempty"`
 }
 
-func (e albumEndpoint) Access(c *gin.Context) {
+func (e albumEndpoint) CreateAccess(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return

@@ -12,6 +12,7 @@ import (
 )
 
 type MediaEndpoint interface {
+	common.EndpointGroup
 	// Upload a new media
 	Create(c *gin.Context)
 	// List all media accessible to the given user
@@ -22,13 +23,37 @@ type MediaEndpoint interface {
 	Delete(c *gin.Context)
 }
 type mediaEndpoint struct {
-	common.Endpoint
+	common.EndpointGroup
 	mediaService       services.MediaService
 	mediaAccessService services.MediaAccessService
 }
 
-func NewMediaEndpoint(permissionsManager common.PermissionsManager, mediaService services.MediaService, mediaAccessService services.MediaAccessService, authMiddleware gin.HandlerFunc) MediaEndpoint {
-	return mediaEndpoint{Endpoint: common.NewEndpoint("album", "/album", []gin.HandlerFunc{authMiddleware}, permissionsManager), mediaService: mediaService, mediaAccessService: mediaAccessService}
+func NewMediaEndpoint(
+	commonMiddlewares []gin.HandlerFunc,
+	permissionsManager common.PermissionsManager,
+	mediaService services.MediaService,
+	mediaAccessService services.MediaAccessService,
+) MediaEndpoint {
+	mediaEndpoint := mediaEndpoint{
+		mediaService:       mediaService,
+		mediaAccessService: mediaAccessService,
+	}
+
+	endpoint := common.NewEndpoint(
+		"Medias",
+		"/media",
+		commonMiddlewares,
+		map[common.MethodPath][]gin.HandlerFunc{
+			{Method: "POST", Path: "/"}:           {mediaEndpoint.Create},
+			{Method: "GET", Path: "/"}:            {mediaEndpoint.List},
+			{Method: "GET", Path: "/:mediaId"}:    {mediaEndpoint.Get},
+			{Method: "DELETE", Path: "/:mediaId"}: {mediaEndpoint.Delete},
+		},
+		permissionsManager,
+	)
+
+	mediaEndpoint.EndpointGroup = endpoint
+	return mediaEndpoint
 }
 
 func (e mediaEndpoint) Create(c *gin.Context) {
