@@ -33,20 +33,20 @@ func NewMyEndpoint(
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
 			// Common album edition actions
-			{Method: "POST", Path: "/"}: {myEndpoint.MyPOST},
-			{Method: "GET", Path: "/"}:  {myEndpoint.MyGET},
+			{Method: "POST", Path: ""}: {myEndpoint.MyPOST},
+			{Method: "GET", Path: ""}:  {myEndpoint.MyGET},
 		},
 		permissionsManager,
 	)
 
 	myEndpoint.EndpointGroup = endpoint
-	return myEndpoint
+	return &myEndpoint
 }
 
-func (e myEndpoint) MyPOST(c *gin.Context) {
+func (e *myEndpoint) MyPOST(c *gin.Context) {
 
 }
 
-func (e myEndpoint) MyGET(c *gin.Context) {
+func (e *myEndpoint) MyGET(c *gin.Context) {
 
 }

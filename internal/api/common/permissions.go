@@ -86,7 +86,27 @@ func (p permissionsManager) CanCreateMedia(user *model.User) bool {
 }
 
 func (p permissionsManager) CanGetMedia(user *model.User, mediaId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
-	return (user != nil && p.getMediaAccessOrNil(user, mediaId) != nil) || (sharedLink != nil && p.mediaInAblumRepository.IsInAlbum(mediaId, &sharedLink.AlbumId))
+	if p.isMediaAuthor(user, mediaId) {
+		// If user owns this media, directly grant acccess
+		return true
+
+	} else if sharedLink != nil && p.mediaInAblumRepository.IsInAlbum(mediaId, &sharedLink.AlbumId) {
+		// Otherwise check if user is accessing this media via a shared link
+		return true
+	} else {
+		// Finally check if this media belongs to an album that user is allowed to view
+		userAlbums, err := p.albumAccessRepository.GetAllByUser(&user.Id)
+		isInUsersAlbums := false
+		if err == nil {
+			for _, album := range userAlbums {
+				if p.mediaInAblumRepository.IsInAlbum(mediaId, album.AlbumId) {
+					isInUsersAlbums = true
+					break
+				}
+			}
+		}
+		return isInUsersAlbums
+	}
 }
 
 func (p permissionsManager) CanDeleteMedia(user *model.User, mediaId *primitive.ObjectID) bool {

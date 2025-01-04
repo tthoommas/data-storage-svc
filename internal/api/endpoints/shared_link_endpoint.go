@@ -47,16 +47,16 @@ func NewSharedLinkEndpoint(
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
 			// Common album edition actions
-			{Method: "POST", Path: "/"}:                {sharedLinkEndpoint.Create},
-			{Method: "GET", Path: "/"}:                 {sharedLinkEndpoint.List},
-			{Method: "DELETE", Path: "/:sharedLinkId"}: {sharedLinkEndpoint.Delete},
-			{Method: "PATCH", Path: "/:sharedLinkId"}:  {sharedLinkEndpoint.Update},
+			{Method: "POST", Path: ""}:   {sharedLinkEndpoint.Create},
+			{Method: "GET", Path: ""}:    {sharedLinkEndpoint.List},
+			{Method: "DELETE", Path: ""}: {sharedLinkEndpoint.Delete},
+			{Method: "PATCH", Path: ""}:  {sharedLinkEndpoint.Update},
 		},
 		permissionsManager,
 	)
 
 	sharedLinkEndpoint.EndpointGroup = endpoint
-	return sharedLinkEndpoint
+	return &sharedLinkEndpoint
 }
 
 type CreateBody struct {
@@ -65,7 +65,7 @@ type CreateBody struct {
 	AllowEdit bool   `json:"allowEdit"`
 }
 
-func (e sharedLinkEndpoint) Create(c *gin.Context) {
+func (e *sharedLinkEndpoint) Create(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
@@ -99,7 +99,7 @@ func (e sharedLinkEndpoint) Create(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, gin.H{"sharedLinkToken": link.Token})
 }
 
-func (e sharedLinkEndpoint) List(c *gin.Context) {
+func (e *sharedLinkEndpoint) List(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
@@ -124,7 +124,7 @@ func (e sharedLinkEndpoint) List(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, sharedLinks)
 }
 
-func (e sharedLinkEndpoint) Delete(c *gin.Context) {
+func (e *sharedLinkEndpoint) Delete(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
@@ -156,7 +156,7 @@ type UpdateBody struct {
 	AllowEdit bool   `json:"allowEdit"`
 }
 
-func (e sharedLinkEndpoint) Update(c *gin.Context) {
+func (e *sharedLinkEndpoint) Update(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return

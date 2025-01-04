@@ -97,3 +97,8 @@ func GetUserOrSharedLink(request *gin.Context) (*model.User, *model.SharedLink, 
 	}
 	return user, sharedLink, nil
 }
+
+func GetIdFromContext(key string, c *gin.Context) primitive.ObjectID {
+	id, _ := c.Get(key)
+	return id.(primitive.ObjectID)
+}

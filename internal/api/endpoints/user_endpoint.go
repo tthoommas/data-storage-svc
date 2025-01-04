@@ -36,15 +36,15 @@ func NewUserEndpoint(
 		"/user",
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
-			{Method: "POST", Path: "/"}:           {userEndpoint.Create},
-			{Method: "GET", Path: "/:userId/jwt"}: {userEndpoint.FetchToken},
-			{Method: "POST", Path: "/logout"}:     {userEndpoint.Logout},
+			{Method: "POST", Path: ""}:        {userEndpoint.Create},
+			{Method: "POST", Path: "/jwt"}:    {userEndpoint.FetchToken},
+			{Method: "POST", Path: "/logout"}: {userEndpoint.Logout},
 		},
 		permissionsManager,
 	)
 
 	userEndpoint.EndpointGroup = endpoint
-	return userEndpoint
+	return &userEndpoint
 }
 
 type RegisterUserBody struct {
@@ -52,7 +52,7 @@ type RegisterUserBody struct {
 	Password string `json:"password"`
 }
 
-func (e userEndpoint) Create(c *gin.Context) {
+func (e *userEndpoint) Create(c *gin.Context) {
 	var registerUserBody RegisterUserBody
 
 	if err := c.BindJSON(&registerUserBody); err != nil {
@@ -73,7 +73,7 @@ type FetchJWTBody struct {
 	Password string `json:"password"`
 }
 
-func (e userEndpoint) FetchToken(c *gin.Context) {
+func (e *userEndpoint) FetchToken(c *gin.Context) {
 	var fetchJWTBody FetchJWTBody
 
 	if err := c.BindJSON(&fetchJWTBody); err != nil {
@@ -91,7 +91,7 @@ func (e userEndpoint) FetchToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"jwt": jwt})
 }
 
-func (e userEndpoint) Logout(c *gin.Context) {
+func (e *userEndpoint) Logout(c *gin.Context) {
 	c.SetCookie("jwt", "", -1, "/", "localhost", false, true)
 	c.Status(http.StatusOK)
 }

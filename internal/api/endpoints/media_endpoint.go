@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"data-storage-svc/internal/api/common"
+	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/utils"
@@ -44,19 +45,19 @@ func NewMediaEndpoint(
 		"/media",
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
-			{Method: "POST", Path: "/"}:           {mediaEndpoint.Create},
-			{Method: "GET", Path: "/"}:            {mediaEndpoint.List},
-			{Method: "GET", Path: "/:mediaId"}:    {mediaEndpoint.Get},
-			{Method: "DELETE", Path: "/:mediaId"}: {mediaEndpoint.Delete},
+			{Method: "POST", Path: ""}:            {mediaEndpoint.Create},
+			{Method: "GET", Path: ""}:             {mediaEndpoint.List},
+			{Method: "GET", Path: "/:mediaId"}:    {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
+			{Method: "DELETE", Path: "/:mediaId"}: {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Delete},
 		},
 		permissionsManager,
 	)
 
 	mediaEndpoint.EndpointGroup = endpoint
-	return mediaEndpoint
+	return &mediaEndpoint
 }
 
-func (e mediaEndpoint) Create(c *gin.Context) {
+func (e *mediaEndpoint) Create(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
@@ -83,7 +84,7 @@ func (e mediaEndpoint) Create(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, gin.H{"mediaId": createdId})
 }
 
-func (e mediaEndpoint) List(c *gin.Context) {
+func (e *mediaEndpoint) List(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
@@ -98,28 +99,23 @@ func (e mediaEndpoint) List(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, medias)
 }
 
-func (e mediaEndpoint) Get(c *gin.Context) {
+func (e *mediaEndpoint) Get(c *gin.Context) {
 	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
-
-	// Decode the media id requested in query param
-	mediaId, err := utils.DecodeQueryId("mediaId", c)
-	if err != nil {
-		return
-	}
+	mediaId := utils.GetIdFromContext("mediaId", c)
 
 	// Decode the requested size in query param (if any)
 	mediaQuality := model.ParseMediaQuality(c.DefaultQuery("quality", "medium"))
 
-	if !e.GetPermissionsManager().CanGetMedia(user, mediaId, sharedLink) {
+	if !e.GetPermissionsManager().CanGetMedia(user, &mediaId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
 	// Get the media meta-info
-	media, svcErr := e.mediaService.GetById(mediaId)
+	media, svcErr := e.mediaService.GetById(&mediaId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
@@ -134,26 +130,22 @@ func (e mediaEndpoint) Get(c *gin.Context) {
 	c.Data(http.StatusOK, *mimeType, data)
 }
 
-func (e mediaEndpoint) Delete(c *gin.Context) {
+func (e *mediaEndpoint) Delete(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
 	}
 
-	// Decode the media id requested in query param
-	mediaId, err := utils.DecodeQueryId("mediaId", c)
-	if err != nil {
-		return
-	}
+	mediaId := utils.GetIdFromContext("mediaId", c)
 
 	// Get the media meta-info
-	media, svcErr := e.mediaService.GetById(mediaId)
+	media, svcErr := e.mediaService.GetById(&mediaId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
 
-	if !e.GetPermissionsManager().CanDeleteMedia(user, mediaId) {
+	if !e.GetPermissionsManager().CanDeleteMedia(user, &mediaId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}

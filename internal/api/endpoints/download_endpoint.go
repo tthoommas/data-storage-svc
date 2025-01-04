@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"data-storage-svc/internal/api/common"
+	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
 	"data-storage-svc/internal/utils"
 	"fmt"
@@ -45,15 +46,15 @@ func NewDownloadEndpoint(
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
 			// Common album edition actions
-			{Method: "POST", Path: "/"}:                {downloadEndpoint.InitDownload},
-			{Method: "GET", Path: "/:downloadId/meta"}: {downloadEndpoint.Get},
-			{Method: "GET", Path: "/:downloadId/data"}: {downloadEndpoint.Download},
+			{Method: "POST", Path: ""}:                 {downloadEndpoint.InitDownload},
+			{Method: "GET", Path: "/:downloadId/meta"}: {middlewares.PathParamIdMiddleware("downloadId"), downloadEndpoint.Get},
+			{Method: "GET", Path: "/:downloadId/data"}: {middlewares.PathParamIdMiddleware("downloadId"), downloadEndpoint.Download},
 		},
 		permissionsManager,
 	)
 
 	downloadEndpoint.EndpointGroup = endpoint
-	return downloadEndpoint
+	return &downloadEndpoint
 }
 
 type DownloadAlbumBody struct {
@@ -63,7 +64,7 @@ type DownloadAlbumBody struct {
 	// TODO allow to specify media quality MediasQuality model.MediaQuality `json:"mediasQuality"`
 }
 
-func (e downloadEndpoint) InitDownload(c *gin.Context) {
+func (e *downloadEndpoint) InitDownload(c *gin.Context) {
 	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
@@ -102,30 +103,27 @@ func (e downloadEndpoint) InitDownload(c *gin.Context) {
 	}
 }
 
-func (e downloadEndpoint) Download(c *gin.Context) {
+func (e *downloadEndpoint) Download(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
 	}
 
 	// Decode the download id requested in query param
-	downloadId, err := utils.DecodeQueryId("downloadId", c)
-	if err != nil {
-		return
-	}
+	downloadId := utils.GetIdFromContext("downloadId", c)
 
-	download, svcErr := e.downloadService.Get(downloadId)
+	download, svcErr := e.downloadService.Get(&downloadId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
 
-	if !e.GetPermissionsManager().CanConsumeDownload(user, downloadId) {
+	if !e.GetPermissionsManager().CanConsumeDownload(user, &downloadId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	data, svcErr := e.downloadService.GetData(downloadId)
+	data, svcErr := e.downloadService.GetData(&downloadId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
@@ -135,24 +133,21 @@ func (e downloadEndpoint) Download(c *gin.Context) {
 	c.Data(http.StatusOK, "application/x-zip", data)
 }
 
-func (e downloadEndpoint) Get(c *gin.Context) {
+func (e *downloadEndpoint) Get(c *gin.Context) {
 	user, err := utils.GetUser(c)
 	if err != nil {
 		return
 	}
 
 	// Decode the download id requested in query param
-	downloadId, err := utils.DecodeQueryId("downloadId", c)
-	if err != nil {
-		return
-	}
+	downloadId := utils.GetIdFromContext("downloadId", c)
 
-	if !e.GetPermissionsManager().CanGetDownload(user, downloadId) {
+	if !e.GetPermissionsManager().CanGetDownload(user, &downloadId) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	download, svcErr := e.downloadService.Get(downloadId)
+	download, svcErr := e.downloadService.Get(&downloadId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
