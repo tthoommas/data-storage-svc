@@ -27,6 +27,7 @@ func Mongo() *mongo.Database {
 		configureMongoDb(client, cli.DbName)
 		mongoClient = client
 	}
+
 	return mongoClient.Database(cli.DbName)
 }
 

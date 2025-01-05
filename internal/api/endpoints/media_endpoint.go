@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"bytes"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
@@ -77,6 +78,12 @@ func (e *mediaEndpoint) Create(c *gin.Context) {
 	}
 	fileName := c.GetHeader("Content-Disposition")
 
+	fileName, err = utils.ToUTF8(fileName)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		slog.Debug("couldn't encode filename as utf-8", "err", err)
+		return
+	}
 	addedById, isSharedLink, err := utils.GetUserIdOrLinkId(user, sharedLink)
 	if err != nil {
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -88,6 +95,10 @@ func (e *mediaEndpoint) Create(c *gin.Context) {
 		return
 	}
 	c.IndentedJSON(http.StatusOK, gin.H{"mediaId": createdId})
+}
+
+func isValidUTF8(s string) bool {
+	return bytes.Equal([]byte(s), []byte(string([]rune(s))))
 }
 
 func (e *mediaEndpoint) List(c *gin.Context) {

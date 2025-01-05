@@ -1,11 +1,13 @@
 package utils
 
 import (
+	"bytes"
 	"data-storage-svc/internal"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +15,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 )
 
 func GetDataDir(subPath string) (string, error) {
@@ -111,4 +115,15 @@ func GetUserIdOrLinkId(user *model.User, sharedLink *model.SharedLink) (*primiti
 	} else {
 		return nil, false, fmt.Errorf("unable to get id from user of shared link, both are nil")
 	}
+}
+
+func ToUTF8(input string) (string, error) {
+	reader := bytes.NewReader([]byte(input))
+	transformer := charmap.ISO8859_1.NewDecoder()
+	utf8Reader := transform.NewReader(reader, transformer)
+	utf8Bytes, err := io.ReadAll(utf8Reader)
+	if err != nil {
+		return "", err
+	}
+	return string(utf8Bytes), nil
 }

@@ -67,7 +67,7 @@ func (r albumAccessRepository) RemoveAllAccesses(albumId *primitive.ObjectID) er
 	filter := bson.M{
 		"albumId": albumId,
 	}
-	_, err := r.db.Collection(USER_ALBUM_ACCESS_COLLECTION).DeleteOne(context.Background(), filter)
+	_, err := r.db.Collection(USER_ALBUM_ACCESS_COLLECTION).DeleteMany(context.Background(), filter)
 	return err
 }
 
