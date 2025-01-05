@@ -102,3 +102,13 @@ func GetIdFromContext(key string, c *gin.Context) primitive.ObjectID {
 	id, _ := c.Get(key)
 	return id.(primitive.ObjectID)
 }
+
+func GetUserIdOrLinkId(user *model.User, sharedLink *model.SharedLink) (*primitive.ObjectID, bool, error) {
+	if user != nil {
+		return &user.Id, false, nil
+	} else if sharedLink != nil {
+		return &sharedLink.Id, true, nil
+	} else {
+		return nil, false, fmt.Errorf("unable to get id from user of shared link, both are nil")
+	}
+}

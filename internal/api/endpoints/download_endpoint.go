@@ -91,9 +91,14 @@ func (e *downloadEndpoint) InitDownload(c *gin.Context) {
 
 	if downloadAlbumBody.Everything {
 		// Download the full album (i.e. all medias inside the album)
-		downloadId, err := e.downloadService.InitDownload(albumId, &user.Id)
+		addedById, isSharedLink, err := utils.GetUserIdOrLinkId(user, sharedLink)
 		if err != nil {
-			err.Apply(c)
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		downloadId, svcErr := e.downloadService.InitDownload(albumId, addedById, isSharedLink)
+		if svcErr != nil {
+			svcErr.Apply(c)
 			return
 		}
 		// Return the created download ID
@@ -104,7 +109,7 @@ func (e *downloadEndpoint) InitDownload(c *gin.Context) {
 }
 
 func (e *downloadEndpoint) Download(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -118,7 +123,7 @@ func (e *downloadEndpoint) Download(c *gin.Context) {
 		return
 	}
 
-	if !e.GetPermissionsManager().CanConsumeDownload(user, &downloadId) {
+	if !e.GetPermissionsManager().CanConsumeDownload(user, &downloadId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -134,7 +139,7 @@ func (e *downloadEndpoint) Download(c *gin.Context) {
 }
 
 func (e *downloadEndpoint) Get(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -142,7 +147,7 @@ func (e *downloadEndpoint) Get(c *gin.Context) {
 	// Decode the download id requested in query param
 	downloadId := utils.GetIdFromContext("downloadId", c)
 
-	if !e.GetPermissionsManager().CanGetDownload(user, &downloadId) {
+	if !e.GetPermissionsManager().CanGetDownload(user, &downloadId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}

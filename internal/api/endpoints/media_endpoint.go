@@ -58,12 +58,12 @@ func NewMediaEndpoint(
 }
 
 func (e *mediaEndpoint) Create(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
 
-	if !e.GetPermissionsManager().CanCreateMedia(user) {
+	if !e.GetPermissionsManager().CanCreateMedia(user, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -76,7 +76,13 @@ func (e *mediaEndpoint) Create(c *gin.Context) {
 		return
 	}
 	fileName := c.GetHeader("Content-Disposition")
-	createdId, svcErr := e.mediaService.Create(fileName, &user.Id, &c.Request.Body)
+
+	addedById, isSharedLink, err := utils.GetUserIdOrLinkId(user, sharedLink)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	createdId, svcErr := e.mediaService.Create(fileName, addedById, isSharedLink, &c.Request.Body)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return

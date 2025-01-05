@@ -19,7 +19,7 @@ import (
 
 type DownloadService interface {
 	// Initiate the creation of a zip file (to download the album)
-	InitDownload(albumId *primitive.ObjectID, initiator *primitive.ObjectID) (*primitive.ObjectID, utils.ServiceError)
+	InitDownload(albumId *primitive.ObjectID, initiator *primitive.ObjectID, isInitatedBySharedLink bool) (*primitive.ObjectID, utils.ServiceError)
 	// Check if a download is ready to be downloaded
 	IsReady(downloadId *primitive.ObjectID) bool
 	// Get a download by id
@@ -41,7 +41,7 @@ func NewDownloadService(albumRepository repository.AlbumRepository, downloadRepo
 	return downloadService{albumRepository: albumRepository, downloadRepository: downloadRepository, mediaRepository: mediaRepository, mediaInAlbumRepository: mediaInAlbumRepository}
 }
 
-func (s downloadService) InitDownload(albumId *primitive.ObjectID, initiator *primitive.ObjectID) (*primitive.ObjectID, utils.ServiceError) {
+func (s downloadService) InitDownload(albumId *primitive.ObjectID, initiator *primitive.ObjectID, isInitatedBySharedLink bool) (*primitive.ObjectID, utils.ServiceError) {
 
 	album, err := s.albumRepository.GetById(*albumId)
 	if err != nil {
@@ -68,7 +68,7 @@ func (s downloadService) InitDownload(albumId *primitive.ObjectID, initiator *pr
 	fileId := uuid.New()
 	zipFileName := fileId.String() + ".zip"
 	now := time.Now()
-	downloadId, err := s.downloadRepository.Create(&model.Download{DownloadName: album.Title, StartedAt: &now, ZipFileName: &zipFileName, IsReady: false, Initiator: initiator})
+	downloadId, err := s.downloadRepository.Create(&model.Download{DownloadName: album.Title, StartedAt: &now, ZipFileName: &zipFileName, IsReady: false, Initiator: initiator, IsInitiatedBySharedLink: isInitatedBySharedLink})
 	if err != nil || downloadId == nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't initiate download")
 	}

@@ -239,8 +239,19 @@ func (e *albumEndpoint) AddMedia(c *gin.Context) {
 	}
 
 	// Add media to album
+	addedById, isSharedLink, err := utils.GetUserIdOrLinkId(user, sharedLink)
+	if err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 	addTime := time.Now()
-	mediaInAlbum := &model.MediaInAlbum{MediaId: &mediaId, AlbumId: &albumId, AddedBy: &user.Id, AddedDate: &addTime}
+	mediaInAlbum := &model.MediaInAlbum{
+		MediaId:           &mediaId,
+		AlbumId:           &albumId,
+		AddedBy:           addedById,
+		AddedDate:         &addTime,
+		AddedBySharedLink: isSharedLink,
+	}
 	svcErr = e.albumService.AddMedia(mediaInAlbum)
 	if svcErr != nil {
 		svcErr.Apply(c)
@@ -371,7 +382,7 @@ func (e *albumEndpoint) CreateAccess(c *gin.Context) {
 }
 
 func (e *albumEndpoint) Can(c *gin.Context) {
-	user, err := utils.GetUser(c)
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
 	if err != nil {
 		return
 	}
@@ -381,6 +392,16 @@ func (e *albumEndpoint) Can(c *gin.Context) {
 	switch permission {
 	case "delete":
 		if e.GetPermissionsManager().CanDeleteAlbum(user, &albumId) {
+			c.Status(http.StatusOK)
+			return
+		}
+	case "addmedia":
+		if e.GetPermissionsManager().CanAddMediaToAlbum(user, &albumId, sharedLink) {
+			c.Status(http.StatusOK)
+			return
+		}
+	case "editaccesses":
+		if e.GetPermissionsManager().CanEditAlbumAccesses(user, &albumId) {
 			c.Status(http.StatusOK)
 			return
 		}

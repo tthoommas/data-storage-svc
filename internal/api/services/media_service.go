@@ -22,8 +22,8 @@ import (
 )
 
 type MediaService interface {
-	// Create a new media resource (upload)
-	Create(fileName string, uploader *primitive.ObjectID, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)
+	// Create a new media resource
+	Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
@@ -51,7 +51,7 @@ func NewMediaService(mediaRepository repository.MediaRepository, mediaInAblumRep
 	return mediaService{mediaRepository, mediaInAblumRepository, mediaAccessService, albumService}
 }
 
-func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
+func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
 	if len(fileName) == 0 {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "no file name provided while uploading")
 	}
@@ -66,7 +66,15 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, data
 	storageFileName := uuid.NewString()
 	storageFileName = storageFileName + "." + extension
 	uploadTime := time.Now()
-	mediaId, err := s.mediaRepository.Create(&model.Media{OriginalFileName: &fileName, StorageFileName: &storageFileName, UploadedBy: uploader, UploadTime: &uploadTime})
+	mediaId, err := s.mediaRepository.Create(
+		&model.Media{
+			OriginalFileName:      &fileName,
+			StorageFileName:       &storageFileName,
+			UploadedBy:            uploader,
+			UploadTime:            &uploadTime,
+			UploadedViaSharedLink: uploadedViaSharedLink,
+		},
+	)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")
 	}
@@ -81,11 +89,6 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, data
 	_, err = io.Copy(outFile, *data)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
-	}
-
-	svcErr := s.mediaAccessService.GrantAccess(uploader, mediaId)
-	if svcErr != nil {
-		return nil, svcErr
 	}
 	return mediaId, nil
 }

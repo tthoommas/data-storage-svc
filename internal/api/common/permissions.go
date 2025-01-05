@@ -16,9 +16,9 @@ type PermissionsManager interface {
 	CanListAlbumAccesses(user *model.User, albumId *primitive.ObjectID) bool
 	CanEditAlbumAccesses(user *model.User, albumId *primitive.ObjectID) bool
 	CanInitDownloadForAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
-	CanConsumeDownload(user *model.User, downloadId *primitive.ObjectID) bool
-	CanGetDownload(user *model.User, downloadId *primitive.ObjectID) bool
-	CanCreateMedia(user *model.User) bool
+	CanConsumeDownload(user *model.User, downloadId *primitive.ObjectID, sharedLink *model.SharedLink) bool
+	CanGetDownload(user *model.User, downloadId *primitive.ObjectID, sharedLink *model.SharedLink) bool
+	CanCreateMedia(user *model.User, sharedLink *model.SharedLink) bool
 	CanGetMedia(user *model.User, mediaId *primitive.ObjectID, sharedLink *model.SharedLink) bool
 	CanDeleteMedia(user *model.User, mediaId *primitive.ObjectID) bool
 	CanCreateSharedLink(user *model.User, albumId *primitive.ObjectID) bool
@@ -73,16 +73,16 @@ func (p permissionsManager) CanInitDownloadForAlbum(user *model.User, albumId *p
 	return p.CanGetAlbum(user, albumId, sharedLink)
 }
 
-func (p permissionsManager) CanConsumeDownload(user *model.User, downloadId *primitive.ObjectID) bool {
-	return p.isDownloadAuthor(user, downloadId)
+func (p permissionsManager) CanConsumeDownload(user *model.User, downloadId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
+	return p.isDownloadAuthor(user, downloadId, sharedLink)
 }
 
-func (p permissionsManager) CanGetDownload(user *model.User, downloadId *primitive.ObjectID) bool {
-	return p.isDownloadAuthor(user, downloadId)
+func (p permissionsManager) CanGetDownload(user *model.User, downloadId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
+	return p.isDownloadAuthor(user, downloadId, sharedLink)
 }
 
-func (p permissionsManager) CanCreateMedia(user *model.User) bool {
-	return true
+func (p permissionsManager) CanCreateMedia(user *model.User, sharedLink *model.SharedLink) bool {
+	return user != nil || (sharedLink != nil && sharedLink.CanEdit)
 }
 
 func (p permissionsManager) CanGetMedia(user *model.User, mediaId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
@@ -130,7 +130,6 @@ func (p permissionsManager) CanUpdateSharedLink(user *model.User, sharedLink *mo
 }
 
 // Utility private methods
-
 func (p permissionsManager) isMediaAuthor(user *model.User, mediaId *primitive.ObjectID) bool {
 	media := p.getMediaOrNil(user, mediaId)
 	return media != nil && media.UploadedBy.Hex() == user.Id.Hex()
@@ -181,7 +180,7 @@ func (p permissionsManager) isAlbumAuthor(user *model.User, albumId *primitive.O
 	return user != nil && album != nil && user.Id.Hex() == album.AuthorId.Hex()
 }
 
-func (p permissionsManager) isDownloadAuthor(user *model.User, downloadId *primitive.ObjectID) bool {
+func (p permissionsManager) isDownloadAuthor(user *model.User, downloadId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
 	download := p.getDownload(downloadId)
-	return download != nil && download.Initiator.Hex() == user.Id.Hex()
+	return download != nil && download.Initiator != nil && ((user != nil && download.Initiator.Hex() == user.Id.Hex()) || (sharedLink != nil && download.Initiator.Hex() == sharedLink.Id.Hex()))
 }
