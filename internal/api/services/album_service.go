@@ -20,6 +20,8 @@ type AlbumService interface {
 	GetMedias(albumId *primitive.ObjectID) ([]model.MediaInAlbum, utils.ServiceError)
 	// Add a media to the given album
 	AddMedia(mediaInAlbum *model.MediaInAlbum) utils.ServiceError
+	// Delete a media from an album
+	DeleteMedia(mediaId *primitive.ObjectID, albumId *primitive.ObjectID) utils.ServiceError
 	// Delete a media from all albums
 	DeleteMediaFromAll(mediaId *primitive.ObjectID) utils.ServiceError
 	// Delete an album
@@ -94,6 +96,14 @@ func (s albumService) AddMedia(mediaInAlbum *model.MediaInAlbum) utils.ServiceEr
 	err := s.mediaInAlbumRepository.AddMediaToAlbum(mediaInAlbum)
 	if err != nil {
 		return utils.NewServiceError(http.StatusInternalServerError, "unable to add media to album")
+	}
+	return nil
+}
+
+func (s albumService) DeleteMedia(mediaId *primitive.ObjectID, albumId *primitive.ObjectID) utils.ServiceError {
+	err := s.mediaInAlbumRepository.RemoveMediaFromAlbum(albumId, mediaId)
+	if err != nil {
+		return utils.NewServiceError(http.StatusNotFound, "unbale to remove media from the album")
 	}
 	return nil
 }

@@ -98,6 +98,7 @@ var MediaExtensionMimeType = map[string]string{
 	"jpeg": "image/jpeg",
 	"png":  "image/png",
 	"gif":  "image/gif",
+	"heic": "image/heic",
 }
 
 func getExtension(filename *string) (string, error) {
@@ -109,7 +110,7 @@ func getExtension(filename *string) (string, error) {
 	} else {
 		extension = parts[len(parts)-1]
 	}
-	return extension, nil
+	return strings.ToLower(extension), nil
 }
 
 func checkExtension(filename *string) (string, bool) {
@@ -152,20 +153,21 @@ func (s mediaService) GetData(storageFileName string, mediaQuality model.MediaQu
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 
-	data, err = resizeImage(data, mediaQuality)
+	resizedData, err := resizeImage(data, mediaQuality)
 	if err != nil {
-		slog.Debug("Error while resizing the image", "error", err)
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
+		slog.Warn("Error while resizing the image", "error", err)
+		// Error while resizing, image not supported by resizing library ? Return full image
+		resizedData = data
 	}
 
-	slog.Debug("read file", "length", len(data))
+	slog.Debug("read file", "length", len(resizedData))
 	// Infer mime type and send the media
 	mimeType, err := getMimeType(&storageFileName)
 	if err != nil {
 		slog.Debug("Cannot infer file mime type", "error", err, "mediaFilePath", mediaFilePath)
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
-	return &mimeType, data, nil
+	return &mimeType, resizedData, nil
 }
 
 func resizeImage(originalRaw []byte, maxQuality model.MediaQuality) ([]byte, error) {

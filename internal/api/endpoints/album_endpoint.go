@@ -25,6 +25,8 @@ type AlbumEndpoint interface {
 	GetMedias(c *gin.Context)
 	// Add a media in the album
 	AddMedia(c *gin.Context)
+	// Delete (unlink) the given media from the given album
+	DeleteMedia(c *gin.Context)
 	// Delete an album (not the underlying medias)
 	Delete(c *gin.Context)
 	// Return the list of users who can access this album
@@ -83,12 +85,15 @@ func NewAlbumEndpoint(
 			},
 			// Album media edition action
 			{Method: "PUT", Path: "/:albumId/media/:mediaId"}: {
-				middlewares.PathParamIdMiddleware("albumId"),
-				middlewares.PathParamIdMiddleware("mediaId"),
+				middlewares.PathParamIdMiddleware("albumId", "mediaId"),
 				albumEndpoint.AddMedia,
 			},
 			{Method: "GET", Path: "/:albumId/media"}: {
 				middlewares.PathParamIdMiddleware("albumId"), albumEndpoint.GetMedias,
+			},
+			{Method: "DELETE", Path: "/:albumId/media/:mediaId"}: {
+				middlewares.PathParamIdMiddleware("albumId", "mediaId"),
+				albumEndpoint.DeleteMedia,
 			},
 			// Album access management actions
 			{Method: "GET", Path: "/:albumId/access"}:    {middlewares.PathParamIdMiddleware("albumId"), albumEndpoint.GetAllAccesses},
@@ -233,7 +238,7 @@ func (e *albumEndpoint) AddMedia(c *gin.Context) {
 	albumId := utils.GetIdFromContext("albumId", c)
 
 	// Check if user is allowed to edit the album
-	if !e.GetPermissionsManager().CanAddMediaToAlbum(user, &albumId, sharedLink) {
+	if !e.GetPermissionsManager().CanEditMediasInAlbum(user, &albumId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -253,6 +258,40 @@ func (e *albumEndpoint) AddMedia(c *gin.Context) {
 		AddedBySharedLink: isSharedLink,
 	}
 	svcErr = e.albumService.AddMedia(mediaInAlbum)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+func (e *albumEndpoint) DeleteMedia(c *gin.Context) {
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
+	if err != nil {
+		return
+	}
+
+	// Decoding media ID from the request body
+	mediaId := utils.GetIdFromContext("mediaId", c)
+
+	// Get the media (check if it exists)
+	_, svcErr := e.mediaService.GetById(&mediaId)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	// Decoding album ID from the request body
+	albumId := utils.GetIdFromContext("albumId", c)
+
+	// Check if user is allowed to edit the album
+	if !e.GetPermissionsManager().CanEditMediasInAlbum(user, &albumId, sharedLink) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	svcErr = e.albumService.DeleteMedia(&mediaId, &albumId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
@@ -395,8 +434,8 @@ func (e *albumEndpoint) Can(c *gin.Context) {
 			c.Status(http.StatusOK)
 			return
 		}
-	case "addmedia":
-		if e.GetPermissionsManager().CanAddMediaToAlbum(user, &albumId, sharedLink) {
+	case "addmedia", "deletemedia":
+		if e.GetPermissionsManager().CanEditMediasInAlbum(user, &albumId, sharedLink) {
 			c.Status(http.StatusOK)
 			return
 		}

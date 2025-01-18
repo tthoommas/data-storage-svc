@@ -11,7 +11,7 @@ type PermissionsManager interface {
 	CanCreateAlbum(user *model.User) bool
 	CanGetAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
 	CanGetAllMediasForAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
-	CanAddMediaToAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
+	CanEditMediasInAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
 	CanDeleteAlbum(user *model.User, albumId *primitive.ObjectID) bool
 	CanListAlbumAccesses(user *model.User, albumId *primitive.ObjectID) bool
 	CanEditAlbumAccesses(user *model.User, albumId *primitive.ObjectID) bool
@@ -52,7 +52,7 @@ func (p permissionsManager) CanGetAllMediasForAlbum(user *model.User, albumId *p
 	return p.CanGetAlbum(user, albumId, sharedLink)
 }
 
-func (p permissionsManager) CanAddMediaToAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
+func (p permissionsManager) CanEditMediasInAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool {
 	access := p.getAlbumAccessOrNil(user, albumId)
 	return (access != nil && access.CanEdit) || (sharedLink != nil && sharedLink.AlbumId.Hex() == albumId.Hex() && sharedLink.CanEdit)
 }
