@@ -5,8 +5,11 @@ import (
 	"data-storage-svc/internal/api/endpoints"
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
+	"data-storage-svc/internal/cli"
 	"data-storage-svc/internal/database"
 	"data-storage-svc/internal/repository"
+	"fmt"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +18,10 @@ func StartApi() {
 	router := gin.Default()
 	router.Use(middlewares.CORSMiddleware())
 
+	slog.Debug("Getting mongo client")
 	db := database.Mongo()
+
+	slog.Debug("Creating repositories")
 	// Create repositories
 	albumAccessRepository := repository.NewAlbumAccessRepository(db)
 	albumRepository := repository.NewAlbumRepository(db)
@@ -66,5 +72,6 @@ func StartApi() {
 		}
 	}
 
-	router.Run("0.0.0.0:8080")
+	fmt.Println("Apiu START")
+	router.Run(fmt.Sprintf("%s:%d", cli.ApiIp, cli.ApiPort))
 }

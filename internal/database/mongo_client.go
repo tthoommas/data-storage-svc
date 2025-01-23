@@ -19,7 +19,7 @@ var mongoClient *mongo.Client
 
 func Mongo() *mongo.Database {
 	if mongoClient == nil {
-		client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
+		client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(cli.MongoConnectionString))
 		if err != nil {
 			slog.Error("couldn't create mongo client")
 			panic(err)
