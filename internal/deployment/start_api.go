@@ -1,11 +1,11 @@
 package deployment
 
 import (
+	"data-storage-svc/internal"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/endpoints"
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
-	"data-storage-svc/internal/cli"
 	"data-storage-svc/internal/database"
 	"data-storage-svc/internal/repository"
 	"fmt"
@@ -71,7 +71,5 @@ func StartApi() {
 			}
 		}
 	}
-
-	fmt.Println("Apiu START")
-	router.Run(fmt.Sprintf("%s:%d", cli.ApiIp, cli.ApiPort))
+	router.Run(fmt.Sprintf("%s:%d", internal.API_IP, internal.API_PORT))
 }

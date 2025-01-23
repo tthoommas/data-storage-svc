@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"data-storage-svc/internal/cli"
+	"data-storage-svc/internal"
 	"data-storage-svc/internal/repository"
 	"log/slog"
 
@@ -19,16 +19,16 @@ var mongoClient *mongo.Client
 
 func Mongo() *mongo.Database {
 	if mongoClient == nil {
-		client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(cli.MongoConnectionString))
+		client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(internal.MONGO_URL))
 		if err != nil {
 			slog.Error("couldn't create mongo client")
 			panic(err)
 		}
-		configureMongoDb(client, cli.DbName)
+		configureMongoDb(client, DB_NAME)
 		mongoClient = client
 	}
 
-	return mongoClient.Database(cli.DbName)
+	return mongoClient.Database(DB_NAME)
 }
 
 func configureMongoDb(client *mongo.Client, dbName string) {
