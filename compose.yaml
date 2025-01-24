@@ -1,0 +1,32 @@
+name: "album-photo-api"
+services:
+  api:
+    build: .
+    command: [
+      "/album", 
+      "run", 
+      "--api-ip=0.0.0.0", 
+      "--api-port=8080", 
+      "--mongo-url=mongodb://mongo:27017",
+      "--data-directory=/data",
+    ]
+    ports:
+      - "8080:8080"
+    volumes:
+      - type: bind
+        source: ${ALBUM_DATA_DIRECTORY}
+        target: /data
+    depends_on:
+      mongo:
+        condition: service_started
+        restart: true
+  
+  mongo:
+    image: ${ARCH}/mongo:4.4.1
+    volumes:
+      - type: bind
+        source: ${ALBUM_DATA_DIRECTORY}/mongo/
+        target: /data/db
+
+
+

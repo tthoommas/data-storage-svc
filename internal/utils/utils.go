@@ -20,7 +20,7 @@ import (
 )
 
 func GetDataDir(subPath string) (string, error) {
-	path := filepath.Join(internal.DATA_DIR_PATH, subPath)
+	path := filepath.Join(internal.DATA_DIRECTORY, subPath)
 	exists, err := pathExists(path)
 	if err != nil || !exists {
 		slog.Debug("Data path not found", "path", path)
