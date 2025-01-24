@@ -3,9 +3,6 @@ name: Docker Image CI
 on:
   push:
     branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
-
 jobs:
   push_to_registry:
     name: Push Docker image to Docker Hub
@@ -29,7 +26,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
-          images: tthoommas/private
+          images: tthoommas/album
 
       - name: Build and push Docker image
         id: push
@@ -38,5 +35,5 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
