@@ -37,7 +37,7 @@ func StartMongoDB() error {
 		slog.Debug("No existing mongo container found, creating one")
 
 		// Pull the MongoDB image
-		out, err := apiClient.ImagePull(context.Background(), "mongo", image.PullOptions{})
+		out, err := apiClient.ImagePull(context.Background(), "mongo:4.4.1", image.PullOptions{})
 		if err != nil {
 			slog.Error("couldn't pull the mongo image")
 			panic(err)
@@ -46,7 +46,7 @@ func StartMongoDB() error {
 		defer out.Close()
 
 		containerConfig := &container.Config{
-			Image:    "mongo",
+			Image:    "mongo:4.4.1",
 			Hostname: "mongo",
 		}
 		dataDir, err := utils.GetDataDir("mongo")

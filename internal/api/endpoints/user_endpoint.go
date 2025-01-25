@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"data-storage-svc/internal"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/services"
 	"net/http"
@@ -86,12 +87,12 @@ func (e *userEndpoint) FetchToken(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("jwt", *jwt, 3600, "/", "localhost", false, true)
-	c.SetCookie("user", fetchJWTBody.Email, 3600, "/", "localhost", false, false)
+	c.SetCookie("jwt", *jwt, 3600, "/", internal.API_DOMAIN, !internal.DEBUG, true)
+	c.SetCookie("user", fetchJWTBody.Email, 3600, "/", internal.API_DOMAIN, !internal.DEBUG, false)
 	c.JSON(http.StatusOK, gin.H{"jwt": jwt})
 }
 
 func (e *userEndpoint) Logout(c *gin.Context) {
-	c.SetCookie("jwt", "", -1, "/", "localhost", false, true)
+	c.SetCookie("jwt", "", -1, "/", internal.API_DOMAIN, !internal.DEBUG, true)
 	c.Status(http.StatusOK)
 }

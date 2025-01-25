@@ -24,6 +24,7 @@ func main() {
 				Action: func(ctx context.Context, c *cli.Command) error {
 					if internal.DEBUG {
 						slog.SetLogLoggerLevel(slog.LevelDebug)
+						deployment.StartMongoDB()
 					} else {
 						slog.SetLogLoggerLevel(slog.LevelError)
 					}
@@ -50,6 +51,12 @@ func main() {
 						Usage:       "The IP to expose the API against",
 						Value:       "127.0.0.1",
 						Destination: &internal.API_IP,
+					},
+					&cli.StringFlag{
+						Name:        "api-domain",
+						Usage:       "The domain on which the API is exposed",
+						Value:       "localhost",
+						Destination: &internal.API_DOMAIN,
 					},
 					&cli.IntFlag{
 						Name:        "api-port",

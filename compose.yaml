@@ -9,6 +9,8 @@ services:
       "--api-port=8080", 
       "--mongo-url=mongodb://mongo:27017",
       "--data-directory=/data",
+      "--api-domain=${API_DOMAIN}",
+      "--debug=false"
     ]
     ports:
       - "8080:8080"
