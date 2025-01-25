@@ -24,7 +24,7 @@ func StartMongoDB() error {
 	slog.Debug("Docker client created v" + apiClient.ClientVersion())
 	defer apiClient.Close()
 
-	containers, err := apiClient.ContainerList(context.Background(), container.ListOptions{All: true, Filters: filters.NewArgs(filters.KeyValuePair{Key: "ancestor", Value: "mongo"})})
+	containers, err := apiClient.ContainerList(context.Background(), container.ListOptions{All: true, Filters: filters.NewArgs(filters.KeyValuePair{Key: "ancestor", Value: "mongo:4.4.1"})})
 	if err != nil {
 		slog.Error("Couldn't list docker containers")
 		panic(err)

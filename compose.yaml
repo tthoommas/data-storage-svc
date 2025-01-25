@@ -25,6 +25,8 @@ services:
   
   mongo:
     image: ${ARCH}/mongo:4.4.1
+    ports:
+      - "27017:27017"
     volumes:
       - type: bind
         source: ${ALBUM_DATA_DIRECTORY}/mongo/
