@@ -9,7 +9,9 @@ COPY go.mod go.sum ./
 COPY cmd/ ./cmd
 COPY internal/ ./internal
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /album cmd/data-storage/main.go 
+RUN apt-get update && apt-get install -y libvips libvips-tools libvips-dev && rm -rf /var/lib/apt/lists/*
+
+RUN GOOS=linux go build -o /album cmd/data-storage/main.go 
 
 EXPOSE 8080
 
