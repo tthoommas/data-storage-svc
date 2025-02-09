@@ -20,6 +20,8 @@ type MediaEndpoint interface {
 	List(c *gin.Context)
 	// Get a specific media by id
 	Get(c *gin.Context)
+	// Get media meta data by id
+	GetMetaData(c *gin.Context)
 	// Delete a specific media by id
 	Delete(c *gin.Context)
 }
@@ -45,10 +47,11 @@ func NewMediaEndpoint(
 		"/media",
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
-			{Method: "POST", Path: ""}:            {mediaEndpoint.Create},
-			{Method: "GET", Path: ""}:             {mediaEndpoint.List},
-			{Method: "GET", Path: "/:mediaId"}:    {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
-			{Method: "DELETE", Path: "/:mediaId"}: {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Delete},
+			{Method: "POST", Path: ""}:              {mediaEndpoint.Create},
+			{Method: "GET", Path: ""}:               {mediaEndpoint.List},
+			{Method: "GET", Path: "/:mediaId"}:      {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
+			{Method: "GET", Path: "/:mediaId/meta"}: {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.GetMetaData},
+			{Method: "DELETE", Path: "/:mediaId"}:   {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Delete},
 		},
 		permissionsManager,
 	)
@@ -148,6 +151,26 @@ func (e *mediaEndpoint) Get(c *gin.Context) {
 	}
 
 	c.Data(http.StatusOK, *mimeType, data)
+}
+
+func (e *mediaEndpoint) GetMetaData(c *gin.Context) {
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
+	if err != nil {
+		return
+	}
+	mediaId := utils.GetIdFromContext("mediaId", c)
+
+	if !e.GetPermissionsManager().CanGetMedia(user, &mediaId, sharedLink) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	metaDatas, svcErr := e.mediaService.GetMetaData(&mediaId)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+	c.IndentedJSON(http.StatusOK, metaDatas)
 }
 
 func (e *mediaEndpoint) Delete(c *gin.Context) {

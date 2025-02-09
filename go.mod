@@ -14,14 +14,19 @@ require (
 )
 
 require (
+	github.com/evanoberholster/imagemeta v0.3.1 // indirect
 	github.com/h2non/bimg v1.1.9 // indirect
 	github.com/hhrutter/lzw v1.0.0 // indirect
 	github.com/hhrutter/tiff v1.0.1 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pdfcpu/pdfcpu v0.9.1 // indirect
+	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/sunshineplan/imgconv v1.1.13 // indirect
 	github.com/sunshineplan/pdf v1.0.7 // indirect
+	github.com/tinylib/msgp v1.1.8 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 

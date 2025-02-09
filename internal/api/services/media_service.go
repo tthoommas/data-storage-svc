@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evanoberholster/imagemeta"
 	"github.com/google/uuid"
 	"github.com/h2non/bimg"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -25,6 +26,8 @@ type MediaService interface {
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
 	GetData(storageFileName string, compressed bool) (*string, []byte, utils.ServiceError)
+	// Get the media metadata (i.e. exif data contained in original file)
+	GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError)
 	// Get all media accessible to a given user
 	GetAllSharedWithUser(userId *primitive.ObjectID) ([]model.UserMediaAccess, utils.ServiceError)
 	// Get all medias uploaded by user
@@ -185,6 +188,39 @@ func (s mediaService) GetData(storageFileName string, compressed bool) (*string,
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 	return &mimeType, data, nil
+}
+
+func (s mediaService) GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError) {
+	media, svcErr := s.GetById(mediaId)
+	if svcErr != nil {
+		return nil, svcErr
+	}
+	mediaDir, err := utils.GetDataDir("originalMedias")
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't get meta data")
+	}
+	mediaFilePath := filepath.Join(mediaDir, *media.StorageFileName)
+	mediaFile, err := os.Open(mediaFilePath)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't get meta data")
+	}
+	defer mediaFile.Close()
+
+	exif, err := imagemeta.Decode(mediaFile)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusNotFound, "no meta data found for this image")
+	}
+
+	metaData := model.MetaData{
+		CameraModel: exif.LensModel,
+		Location: &model.Location{
+			Latitude:  exif.GPS.Latitude(),
+			Longitude: exif.GPS.Longitude(),
+			Altitude:  exif.GPS.Altitude(),
+		},
+		Created: exif.CreateDate(),
+	}
+	return &metaData, nil
 }
 
 func (s mediaService) GetAllSharedWithUser(userId *primitive.ObjectID) ([]model.UserMediaAccess, utils.ServiceError) {
