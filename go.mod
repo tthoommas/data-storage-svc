@@ -14,6 +14,18 @@ require (
 )
 
 require (
+	github.com/h2non/bimg v1.1.9 // indirect
+	github.com/hhrutter/lzw v1.0.0 // indirect
+	github.com/hhrutter/tiff v1.0.1 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/pdfcpu/pdfcpu v0.9.1 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/sunshineplan/imgconv v1.1.13 // indirect
+	github.com/sunshineplan/pdf v1.0.7 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+)
+
+require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/bytedance/sonic v1.11.9 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
@@ -70,11 +82,11 @@ require (
 	go.opentelemetry.io/otel/sdk v1.32.0 // indirect
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/image v0.23.0 // indirect
+	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

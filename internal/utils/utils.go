@@ -22,9 +22,13 @@ import (
 func GetDataDir(subPath string) (string, error) {
 	path := filepath.Join(internal.DATA_DIRECTORY, subPath)
 	exists, err := pathExists(path)
-	if err != nil || !exists {
-		slog.Debug("Data path not found", "path", path)
-		return "", fmt.Errorf("couldn't open data folder, or path does not exists")
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		if err := os.Mkdir(path, 0666); err != nil {
+			return "", err
+		}
 	}
 	return path, nil
 }

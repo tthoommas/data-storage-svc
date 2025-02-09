@@ -1,13 +1,10 @@
 package services
 
 import (
-	"bytes"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
 	"errors"
-	"image"
-	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,8 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/h2non/bimg"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"golang.org/x/image/draw"
 )
 
 type MediaService interface {
@@ -27,7 +24,7 @@ type MediaService interface {
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
-	GetData(storageFileName string, mediaQuality model.MediaQuality) (*string, []byte, utils.ServiceError)
+	GetData(storageFileName string, compressed bool) (*string, []byte, utils.ServiceError)
 	// Get all media accessible to a given user
 	GetAllSharedWithUser(userId *primitive.ObjectID) ([]model.UserMediaAccess, utils.ServiceError)
 	// Get all medias uploaded by user
@@ -59,8 +56,9 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if !isValid {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "invalid filename")
 	}
-	targetFile, err := utils.GetDataDir("medias")
-	if err != nil {
+	targetFolderOriginal, err := utils.GetDataDir("originalMedias")
+	targetFolderCompressed, err2 := utils.GetDataDir("compressedMedias")
+	if err != nil || err2 != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
 	storageFileName := uuid.NewString()
@@ -78,9 +76,9 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")
 	}
-	// Prepare to store file on disk
-	targetFile = filepath.Join(targetFile, storageFileName)
-	outFile, err := os.Create(targetFile)
+	// Store original file on disk
+	targetFileOriginal := filepath.Join(targetFolderOriginal, storageFileName)
+	outFile, err := os.Create(targetFileOriginal)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
@@ -88,6 +86,27 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 
 	_, err = io.Copy(outFile, *data)
 	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+	}
+
+	// Store JPEG compressed version on disk
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+	}
+	original, err := bimg.Read(targetFileOriginal)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+	}
+	jpgImage, err := bimg.NewImage(original).Convert(bimg.JPEG)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+	}
+	compressedJpgImage, err := bimg.NewImage(jpgImage).Process(bimg.Options{Quality: 20, NoAutoRotate: true, StripMetadata: true})
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+	}
+	targetFileCompressed := filepath.Join(targetFolderCompressed, storageFileName)
+	if bimg.Write(targetFileCompressed, compressedJpgImage) != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
 	}
 	return mediaId, nil
@@ -139,9 +158,15 @@ func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.
 	return media, nil
 }
 
-func (s mediaService) GetData(storageFileName string, mediaQuality model.MediaQuality) (*string, []byte, utils.ServiceError) {
+func (s mediaService) GetData(storageFileName string, compressed bool) (*string, []byte, utils.ServiceError) {
 	// Read media to send it
-	mediaDirectory, err := utils.GetDataDir("medias")
+	directory := ""
+	if compressed {
+		directory = "compressedMedias"
+	} else {
+		directory = "originalMedias"
+	}
+	mediaDirectory, err := utils.GetDataDir(directory)
 	if err != nil {
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
@@ -153,53 +178,13 @@ func (s mediaService) GetData(storageFileName string, mediaQuality model.MediaQu
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 
-	resizedData, err := resizeImage(data, mediaQuality)
-	if err != nil {
-		slog.Warn("Error while resizing the image", "error", err)
-		// Error while resizing, image not supported by resizing library ? Return full image
-		resizedData = data
-	}
-
-	slog.Debug("read file", "length", len(resizedData))
 	// Infer mime type and send the media
 	mimeType, err := getMimeType(&storageFileName)
 	if err != nil {
 		slog.Debug("Cannot infer file mime type", "error", err, "mediaFilePath", mediaFilePath)
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
-	return &mimeType, resizedData, nil
-}
-
-func resizeImage(originalRaw []byte, maxQuality model.MediaQuality) ([]byte, error) {
-	originalDecoded, _, err := image.Decode(bytes.NewReader(originalRaw))
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate the final image size we want (make sure to keep image ratio)
-	originalWidth := originalDecoded.Bounds().Max.X
-	originalHeight := originalDecoded.Bounds().Max.Y
-	bigSide := max(originalWidth, originalHeight)
-
-	newSize := min(maxQuality.AsInt(), bigSide)
-	ratio := float64(bigSide) / float64(newSize)
-
-	finalWidth := originalWidth / int(ratio)
-	finalHeight := originalHeight / int(ratio)
-
-	// Create the resized image
-	resizedImage := image.NewRGBA(image.Rect(0, 0, finalWidth, finalHeight))
-
-	// Do the resize
-	draw.BiLinear.Scale(resizedImage, resizedImage.Rect, originalDecoded, originalDecoded.Bounds(), draw.Over, nil)
-
-	// Encode it into a byte buffer
-	var result bytes.Buffer
-	err = jpeg.Encode(io.Writer(&result), resizedImage, nil)
-	if err != nil {
-		return nil, err
-	}
-	return result.Bytes(), err
+	return &mimeType, data, nil
 }
 
 func (s mediaService) GetAllSharedWithUser(userId *primitive.ObjectID) ([]model.UserMediaAccess, utils.ServiceError) {
@@ -215,8 +200,10 @@ func (s mediaService) GetAllUploadedByUser(userId *primitive.ObjectID) ([]model.
 }
 
 func (s mediaService) Delete(mediaId *primitive.ObjectID) utils.ServiceError {
-	mediaFolder, err := utils.GetDataDir("medias")
-	if err != nil {
+	originalMediaFolder, err := utils.GetDataDir("originalMedias")
+	compressedMediaFolder, err2 := utils.GetDataDir("compressedMedias")
+
+	if err != nil || err2 != nil {
 		return utils.NewServiceError(http.StatusInternalServerError, "couldn't delete media")
 	}
 
@@ -244,8 +231,9 @@ func (s mediaService) Delete(mediaId *primitive.ObjectID) utils.ServiceError {
 	}
 
 	// Finally, remove the media file from disk storage
-	err = os.Remove(filepath.Join(mediaFolder, *media.StorageFileName))
-	if err != nil {
+	err = os.Remove(filepath.Join(originalMediaFolder, *media.StorageFileName))
+	err2 = os.Remove(filepath.Join(compressedMediaFolder, *media.StorageFileName))
+	if err != nil || err2 != nil {
 		slog.Debug("Couldn't remove media file from storage", "error", err)
 		return utils.NewServiceError(http.StatusInternalServerError, "unable to delete media")
 	}

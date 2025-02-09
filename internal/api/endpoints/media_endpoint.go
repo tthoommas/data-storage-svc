@@ -5,7 +5,6 @@ import (
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
-	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/utils"
 	"log/slog"
 	"net/http"
@@ -124,7 +123,11 @@ func (e *mediaEndpoint) Get(c *gin.Context) {
 	mediaId := utils.GetIdFromContext("mediaId", c)
 
 	// Decode the requested size in query param (if any)
-	mediaQuality := model.ParseMediaQuality(c.DefaultQuery("quality", "medium"))
+	compressedQualityRaw := c.DefaultQuery("compressed", "true")
+	compressedQuality := true
+	if compressedQualityRaw == "false" {
+		compressedQuality = false
+	}
 
 	if !e.GetPermissionsManager().CanGetMedia(user, &mediaId, sharedLink) {
 		c.AbortWithStatus(http.StatusUnauthorized)
@@ -138,7 +141,7 @@ func (e *mediaEndpoint) Get(c *gin.Context) {
 		return
 	}
 	// Get the media data
-	mimeType, data, svcErr := e.mediaService.GetData(*media.StorageFileName, mediaQuality)
+	mimeType, data, svcErr := e.mediaService.GetData(*media.StorageFileName, compressedQuality)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return

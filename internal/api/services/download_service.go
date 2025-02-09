@@ -94,7 +94,7 @@ func (s downloadService) createZipFile(zipFileName string, downloadId primitive.
 	}
 	defer zipFileArchive.Close()
 
-	mediaFolder, err := utils.GetDataDir("medias")
+	mediaFolder, err := utils.GetDataDir("originalMedias")
 	if err != nil {
 		return fmt.Errorf("couldn't create zip archive, cannot find medias folder")
 	}

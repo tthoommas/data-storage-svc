@@ -94,5 +94,6 @@ func (e *userEndpoint) FetchToken(c *gin.Context) {
 
 func (e *userEndpoint) Logout(c *gin.Context) {
 	c.SetCookie("jwt", "", -1, "/", internal.API_DOMAIN, !internal.DEBUG, true)
+	c.SetCookie("user", "", -1, "/", internal.API_DOMAIN, !internal.DEBUG, false)
 	c.Status(http.StatusOK)
 }
