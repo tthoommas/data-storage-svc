@@ -1,6 +1,7 @@
 name: "album-photo-api"
 services:
   api:
+    restart: always
     build: .
     command: [
       "/album", 
@@ -24,6 +25,7 @@ services:
         restart: true
   
   mongo:
+    restart: always
     image: ${ARCH}/mongo:4.4.1
     ports:
       - "27017:27017"
