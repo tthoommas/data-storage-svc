@@ -34,7 +34,7 @@ func StartApi() {
 
 	// Create services
 	albumAccessService := services.NewAlbumAccessService(albumAccessRepository)
-	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService, sharedLinkRepository)
+	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService, sharedLinkRepository, mediaRepository)
 	mediaAccessService := services.NewMediaAccessService(mediaAccessRepository)
 	mediaService := services.NewMediaService(mediaRepository, mediaInAlbumRepository, mediaAccessService, albumService)
 	userService := services.NewUserService(userRepository)

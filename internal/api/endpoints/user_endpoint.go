@@ -4,6 +4,7 @@ import (
 	"data-storage-svc/internal"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/services"
+	"data-storage-svc/internal/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,10 @@ type UserEndpoint interface {
 	FetchToken(c *gin.Context)
 	// Logout, i.e. delete the JWT token
 	Logout(c *gin.Context)
+	// List all users (admin)
+	List(c *gin.Context)
+	// Check permission related to users
+	PermissionCheck(c *gin.Context)
 }
 type userEndpoint struct {
 	common.EndpointGroup
@@ -37,9 +42,11 @@ func NewUserEndpoint(
 		"/user",
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
-			{Method: "POST", Path: ""}:        {userEndpoint.Create},
-			{Method: "POST", Path: "/jwt"}:    {userEndpoint.FetchToken},
-			{Method: "POST", Path: "/logout"}: {userEndpoint.Logout},
+			{Method: "POST", Path: ""}:                {userEndpoint.Create},
+			{Method: "POST", Path: "/jwt"}:            {userEndpoint.FetchToken},
+			{Method: "POST", Path: "/logout"}:         {userEndpoint.Logout},
+			{Method: "GET", Path: ""}:                 {userEndpoint.List},
+			{Method: "GET", Path: "/can/:permission"}: {userEndpoint.PermissionCheck},
 		},
 		permissionsManager,
 	)
@@ -54,6 +61,16 @@ type RegisterUserBody struct {
 }
 
 func (e *userEndpoint) Create(c *gin.Context) {
+	user, err := utils.GetUser(c)
+	if err != nil {
+		return
+	}
+
+	if !e.GetPermissionsManager().CanCreateUser(user) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
 	var registerUserBody RegisterUserBody
 
 	if err := c.BindJSON(&registerUserBody); err != nil {
@@ -96,4 +113,52 @@ func (e *userEndpoint) Logout(c *gin.Context) {
 	c.SetCookie("jwt", "", -1, "/", internal.API_DOMAIN, !internal.DEBUG, true)
 	c.SetCookie("user", "", -1, "/", internal.API_DOMAIN, !internal.DEBUG, false)
 	c.Status(http.StatusOK)
+}
+
+func (e *userEndpoint) List(c *gin.Context) {
+	user, err := utils.GetUser(c)
+	if err != nil {
+		return
+	}
+
+	if !e.GetPermissionsManager().CanListUsers(user) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	users, svcErr := e.userService.GetAll()
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	// Remove password hashes from result
+	for i := range users {
+		users[i].PasswordHash = ""
+	}
+	c.IndentedJSON(http.StatusOK, users)
+}
+
+func (e *userEndpoint) PermissionCheck(c *gin.Context) {
+	user, err := utils.GetUser(c)
+	if err != nil {
+		return
+	}
+
+	if user == nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	permission := c.Param("permission")
+	switch permission {
+	case "list":
+		if e.GetPermissionsManager().CanListUsers(user) {
+			c.Status(http.StatusOK)
+			return
+		}
+	}
+
+	// By default, not authorized
+	c.AbortWithStatus(http.StatusUnauthorized)
 }

@@ -1,10 +1,12 @@
 package services
 
 import (
+	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -153,6 +155,27 @@ func getMimeType(filename *string) (string, error) {
 	return MediaExtensionMimeType[extension], nil
 }
 
+func readMediaFromStorage(directory, storageFileName *string) (*string, []byte, error) {
+	if directory == nil || storageFileName == nil || len(*directory) == 0 || len(*storageFileName) == 0 {
+		return nil, nil, fmt.Errorf("couldn't read file with empty directory/filename")
+	}
+
+	mediaFilePath := filepath.Join(*directory, *storageFileName)
+	slog.Debug("Reading requested file", "filePath", mediaFilePath)
+	data, err := os.ReadFile(mediaFilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't find media")
+	}
+
+	// Infer mime type and send the media
+	mimeType, err := getMimeType(storageFileName)
+	if err != nil {
+		slog.Debug("Cannot infer file mime type", "error", err, "mediaFilePath", mediaFilePath)
+		return nil, nil, fmt.Errorf("couldn't find media")
+	}
+	return &mimeType, data, nil
+}
+
 func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError) {
 	media, err := s.mediaRepository.Get(mediaId)
 	if err != nil {
@@ -165,29 +188,20 @@ func (s mediaService) GetData(storageFileName string, compressed bool) (*string,
 	// Read media to send it
 	directory := ""
 	if compressed {
-		directory = "compressedMedias"
+		directory = common.COMPRESSED_DIRECTORY
 	} else {
-		directory = "originalMedias"
+		directory = common.ORIGINAL_MEDIA_DIRECTORY
 	}
 	mediaDirectory, err := utils.GetDataDir(directory)
 	if err != nil {
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
-	mediaFilePath := filepath.Join(mediaDirectory, storageFileName)
-	slog.Debug("Reading requested file", "filePath", mediaFilePath)
 
-	data, err := os.ReadFile(mediaFilePath)
+	mimeType, data, err := readMediaFromStorage(&mediaDirectory, &storageFileName)
 	if err != nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
+		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find the requested media")
 	}
-
-	// Infer mime type and send the media
-	mimeType, err := getMimeType(&storageFileName)
-	if err != nil {
-		slog.Debug("Cannot infer file mime type", "error", err, "mediaFilePath", mediaFilePath)
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
-	}
-	return &mimeType, data, nil
+	return mimeType, data, nil
 }
 
 func (s mediaService) GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError) {

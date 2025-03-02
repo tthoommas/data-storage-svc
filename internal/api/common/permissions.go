@@ -8,6 +8,8 @@ import (
 )
 
 type PermissionsManager interface {
+	CanListUsers(user *model.User) bool
+	CanCreateUser(user *model.User) bool
 	CanCreateAlbum(user *model.User) bool
 	CanGetAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
 	CanGetAllMediasForAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool
@@ -40,8 +42,16 @@ func NewPermissionsManager(albumAccessRepository repository.AlbumAccessRepositor
 	return permissionsManager{albumAccessRepository: albumAccessRepository, albumRepository: albumRepository, downloadRepository: downloadRepository, mediaAccessRepository: mediaAccessRepository, mediaInAblumRepository: mediaInAblumRepository, mediaRepository: mediaRepository}
 }
 
-func (p permissionsManager) CanCreateAlbum(user *model.User) bool {
+func (p permissionsManager) CanListUsers(user *model.User) bool {
 	return user != nil && user.IsAdmin
+}
+
+func (p permissionsManager) CanCreateUser(user *model.User) bool {
+	return user != nil && user.IsAdmin
+}
+
+func (p permissionsManager) CanCreateAlbum(user *model.User) bool {
+	return user != nil
 }
 
 func (p permissionsManager) CanGetAlbum(user *model.User, albumId *primitive.ObjectID, sharedLink *model.SharedLink) bool {

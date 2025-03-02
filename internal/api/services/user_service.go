@@ -5,9 +5,11 @@ import (
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
+	"log/slog"
 	"net/http"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -19,6 +21,8 @@ type UserService interface {
 	GetByEmail(email string) (*model.User, utils.ServiceError)
 	// Get by id
 	GetById(userId primitive.ObjectID) (*model.User, utils.ServiceError)
+	// Get all
+	GetAll() ([]model.User, utils.ServiceError)
 	// Generates a JWT token for the given user
 	GenerateToken(email string, password string) (*string, utils.ServiceError)
 }
@@ -83,7 +87,11 @@ func (s userService) GenerateToken(email string, password string) (*string, util
 	// User is authenticated, generate a new token
 	jwt, err := security.CreateToken(&user.Email)
 	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't not generate token")
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't generate token")
+	}
+	// Update the last login date
+	if s.userRepository.Update(&user.Id, bson.M{"$set": bson.M{"lastLogin": time.Now()}}) != nil {
+		slog.Error("couldn't update join date for user", "userId", user.Id.Hex())
 	}
 	return &jwt, nil
 }
@@ -94,4 +102,12 @@ func (s userService) GetById(userId primitive.ObjectID) (*model.User, utils.Serv
 		return nil, utils.NewServiceError(http.StatusNotFound, "couldn't find user")
 	}
 	return user, nil
+}
+
+func (s userService) GetAll() ([]model.User, utils.ServiceError) {
+	users, err := s.userRepository.GetAll()
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't fetch user list")
+	}
+	return users, nil
 }
