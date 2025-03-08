@@ -57,6 +57,9 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if len(fileName) == 0 {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "no file name provided while uploading")
 	}
+	if data == nil {
+		return nil, utils.NewServiceError(http.StatusBadRequest, "no file provided")
+	}
 	extension, isValid := checkExtension(&fileName)
 	if !isValid {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "invalid filename")
@@ -88,6 +91,7 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
 	defer outFile.Close()
+	defer (*data).Close()
 
 	_, err = io.Copy(outFile, *data)
 	if err != nil {
