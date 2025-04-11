@@ -98,26 +98,30 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
 	}
 
-	// Store JPEG compressed version on disk
+	buffer, err := bimg.Read(targetFileOriginal)
 	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "failed to read image for compression")
 	}
-	original, err := bimg.Read(targetFileOriginal)
+	compressedJpgImage, err := bimg.NewImage(buffer).Convert(bimg.JPEG)
 	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "image conversion failed")
 	}
-	jpgImage, err := bimg.NewImage(original).Convert(bimg.JPEG)
+
+	compressedJpgImage, err = bimg.NewImage(compressedJpgImage).Process(bimg.Options{
+		Quality:       20,
+		NoAutoRotate:  true,
+		StripMetadata: true,
+	})
 	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "image compression failed")
 	}
-	compressedJpgImage, err := bimg.NewImage(jpgImage).Process(bimg.Options{Quality: 20, NoAutoRotate: true, StripMetadata: true})
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
-	}
+
+	// Save compressed image
 	targetFileCompressed := filepath.Join(targetFolderCompressed, storageFileName)
-	if bimg.Write(targetFileCompressed, compressedJpgImage) != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
+	if err := bimg.Write(targetFileCompressed, compressedJpgImage); err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "failed to save compressed image")
 	}
+
 	return mediaId, nil
 }
 

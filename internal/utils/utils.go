@@ -131,3 +131,11 @@ func ToUTF8(input string) (string, error) {
 	}
 	return string(utf8Bytes), nil
 }
+
+func IntPtr(i int) *int {
+	return &i
+}
+
+func StrPtr(str string) *string {
+	return &str
+}

@@ -5,6 +5,7 @@ import (
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/endpoints"
 	"data-storage-svc/internal/api/middlewares"
+	"data-storage-svc/internal/api/security"
 	"data-storage-svc/internal/api/services"
 	"data-storage-svc/internal/database"
 	"data-storage-svc/internal/repository"
@@ -20,6 +21,10 @@ func StartApi() {
 
 	slog.Debug("Getting mongo client")
 	db := database.Mongo()
+
+	slog.Debug("Creating security modules")
+	hashModule := security.NewHashModule()
+	tokenModule := security.NewTokenModule()
 
 	slog.Debug("Creating repositories")
 	// Create repositories
@@ -37,7 +42,7 @@ func StartApi() {
 	albumService := services.NewAlbumService(albumRepository, mediaInAlbumRepository, albumAccessService, sharedLinkRepository, mediaRepository)
 	mediaAccessService := services.NewMediaAccessService(mediaAccessRepository)
 	mediaService := services.NewMediaService(mediaRepository, mediaInAlbumRepository, mediaAccessService, albumService)
-	userService := services.NewUserService(userRepository)
+	userService := services.NewUserService(userRepository, hashModule, tokenModule)
 	downloadService := services.NewDownloadService(albumRepository, downloadRepository, mediaRepository, mediaInAlbumRepository)
 	sharedLinkService := services.NewSharedLinkService(sharedLinkRepository, albumAccessRepository)
 

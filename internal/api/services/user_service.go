@@ -30,11 +30,12 @@ type UserService interface {
 type userService struct {
 	// Repository dependencies
 	userRepository repository.UserRepository
-	// Service dependencies
+	hashModule     security.HashModule
+	tokenModule    security.TokenModule
 }
 
-func NewUserService(userRepository repository.UserRepository) userService {
-	return userService{userRepository}
+func NewUserService(userRepository repository.UserRepository, hashModule security.HashModule, tokenModule security.TokenModule) userService {
+	return userService{userRepository, hashModule, tokenModule}
 }
 
 func (s userService) Create(email string, password string) (*primitive.ObjectID, utils.ServiceError) {
@@ -52,7 +53,7 @@ func (s userService) Create(email string, password string) (*primitive.ObjectID,
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't create new user")
 	}
 	// Hash the user's password
-	hash, err := security.HashPassword(password)
+	hash, err := s.hashModule.HashPassword(password)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't create new user")
 	}
@@ -67,7 +68,7 @@ func (s userService) Create(email string, password string) (*primitive.ObjectID,
 func (s userService) GetByEmail(email string) (*model.User, utils.ServiceError) {
 	user, err := s.userRepository.GetByEmail(email)
 	if err != nil {
-		return nil, utils.NewServiceError(http.StatusNotFound, "unable to found user")
+		return nil, utils.NewServiceError(http.StatusNotFound, "unable to find user")
 	}
 	return user, nil
 }
@@ -81,11 +82,11 @@ func (s userService) GenerateToken(email string, password string) (*string, util
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusUnauthorized, "unable to authenticate user")
 	}
-	if !security.VerifyPassword(password, user.PasswordHash) {
+	if !s.hashModule.VerifyPassword(password, user.PasswordHash) {
 		return nil, utils.NewServiceError(http.StatusUnauthorized, "unable to authenticate user")
 	}
 	// User is authenticated, generate a new token
-	jwt, err := security.CreateToken(&user.Email)
+	jwt, err := s.tokenModule.CreateToken(&user.Email)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't generate token")
 	}

@@ -1,6 +1,7 @@
 package security
 
 import (
+	"data-storage-svc/internal"
 	"data-storage-svc/internal/utils"
 	"log/slog"
 	"os"
@@ -9,9 +10,20 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
+type TokenModule interface {
+	CreateToken(Email *string) (string, error)
+}
+
+type tokenModule struct {
+}
+
+func NewTokenModule() TokenModule {
+	return tokenModule{}
+}
+
 var secretKey []byte = nil
 
-func CreateToken(Email *string) (string, error) {
+func (t tokenModule) CreateToken(Email *string) (string, error) {
 	// Create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
@@ -41,7 +53,7 @@ func GetSecretKey() []byte {
 }
 
 func loadSecretKey() ([]byte, error) {
-	secretKeyFilePath, err := utils.GetDataDir("security/jwt_key")
+	secretKeyFilePath, err := utils.GetDataDir(internal.JWT_KEY)
 	if err != nil {
 		slog.Debug("Cannot load secret key")
 		return nil, err
