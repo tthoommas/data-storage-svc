@@ -11,13 +11,13 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/evanoberholster/imagemeta"
 	"github.com/google/uuid"
-	"github.com/h2non/bimg"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -57,7 +57,7 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if len(fileName) == 0 {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "no file name provided while uploading")
 	}
-	if data == nil {
+	if data == nil || *data == nil {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "no file provided")
 	}
 	extension, isValid := checkExtension(&fileName)
@@ -69,13 +69,14 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if err != nil || err2 != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
-	storageFileName := uuid.NewString()
-	storageFileName = storageFileName + "." + extension
+	storageUUID := uuid.NewString()
+	originalStorageFileName := storageUUID + "." + extension
+	compressedStorageFileName := storageUUID + ".jpg" // Always use JPG for compression
 	uploadTime := time.Now()
 	mediaId, err := s.mediaRepository.Create(
 		&model.Media{
 			OriginalFileName:      &fileName,
-			StorageFileName:       &storageFileName,
+			StorageFileName:       &originalStorageFileName,
 			UploadedBy:            uploader,
 			UploadTime:            &uploadTime,
 			UploadedViaSharedLink: uploadedViaSharedLink,
@@ -85,41 +86,26 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")
 	}
 	// Store original file on disk
-	targetFileOriginal := filepath.Join(targetFolderOriginal, storageFileName)
+	targetFileOriginal := filepath.Join(targetFolderOriginal, originalStorageFileName)
 	outFile, err := os.Create(targetFileOriginal)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
-	defer outFile.Close()
-	defer (*data).Close()
 
 	_, err = io.Copy(outFile, *data)
+	(*data).Close()
+	outFile.Close()
+
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
 	}
 
-	buffer, err := bimg.Read(targetFileOriginal)
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "failed to read image for compression")
-	}
-	compressedJpgImage, err := bimg.NewImage(buffer).Convert(bimg.JPEG)
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "image conversion failed")
-	}
-
-	compressedJpgImage, err = bimg.NewImage(compressedJpgImage).Process(bimg.Options{
-		Quality:       20,
-		NoAutoRotate:  true,
-		StripMetadata: true,
-	})
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "image compression failed")
-	}
-
-	// Save compressed image
-	targetFileCompressed := filepath.Join(targetFolderCompressed, storageFileName)
-	if err := bimg.Write(targetFileCompressed, compressedJpgImage); err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "failed to save compressed image")
+	// Save a compressed version using vips for max efficiency
+	targetFileCompressed := filepath.Join(targetFolderCompressed, compressedStorageFileName)
+	cmd := exec.Command("vips", "jpegsave", targetFileOriginal, targetFileCompressed,
+		"--Q=20", "--strip")
+	if err := cmd.Run(); err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "vips compression failed")
 	}
 
 	return mediaId, nil

@@ -26,7 +26,7 @@ func GetDataDir(subPath string) (string, error) {
 		return "", err
 	}
 	if !exists {
-		if err := os.Mkdir(path, 0666); err != nil {
+		if err := os.Mkdir(path, 0755); err != nil {
 			return "", err
 		}
 	}
@@ -138,4 +138,8 @@ func IntPtr(i int) *int {
 
 func StrPtr(str string) *string {
 	return &str
+}
+
+func Ptr[T any](v T) *T {
+	return &v
 }
