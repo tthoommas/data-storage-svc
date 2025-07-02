@@ -26,7 +26,7 @@ func GetDataDir(subPath string) (string, error) {
 		return "", err
 	}
 	if !exists {
-		if err := os.Mkdir(path, 0666); err != nil {
+		if err := os.Mkdir(path, 0777); err != nil {
 			return "", err
 		}
 	}
