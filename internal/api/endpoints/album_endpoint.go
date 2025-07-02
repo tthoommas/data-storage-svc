@@ -23,6 +23,8 @@ type AlbumEndpoint interface {
 	GetAll(c *gin.Context)
 	// Get all medias in the given album
 	GetMedias(c *gin.Context)
+	// Get a thumbnail for this album
+	GetAlbumThumbnail(c *gin.Context)
 	// Add a media in the album
 	AddMedia(c *gin.Context)
 	// Delete (unlink) the given media from the given album
@@ -82,6 +84,10 @@ func NewAlbumEndpoint(
 			{Method: "DELETE", Path: "/:albumId"}: {
 				middlewares.PathParamIdMiddleware("albumId"),
 				albumEndpoint.Delete,
+			},
+			{Method: "GET", Path: "/:albumId/thumbnail"}: {
+				middlewares.PathParamIdMiddleware("albumId"),
+				albumEndpoint.GetAlbumThumbnail,
 			},
 			// Album media edition action
 			{Method: "PUT", Path: "/:albumId/media/:mediaId"}: {
@@ -319,6 +325,28 @@ func (e *albumEndpoint) Delete(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (e *albumEndpoint) GetAlbumThumbnail(c *gin.Context) {
+	user, sharedLink, err := utils.GetUserOrSharedLink(c)
+	if err != nil {
+		return
+	}
+
+	albumId := utils.GetIdFromContext("albumId", c)
+
+	if !e.GetPermissionsManager().CanGetAlbum(user, &albumId, sharedLink) {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	mimeType, data, svcErr := e.albumService.GetAlbumThumbnail(&albumId)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	c.Data(http.StatusOK, *mimeType, data)
 }
 
 func (e *albumEndpoint) GetAllAccesses(c *gin.Context) {

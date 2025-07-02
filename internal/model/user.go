@@ -7,9 +7,10 @@ import (
 )
 
 type User struct {
-	Id           primitive.ObjectID `bson:"_id,omitempty"`
-	IsAdmin      bool               `bson:"isAdmin,omitempty"`
-	Email        string             `bson:"email"`
-	JoinDate     time.Time          `bson:"joinDate,omitempty"`
-	PasswordHash string             `bson:"passwordHash"`
+	Id           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	IsAdmin      bool               `bson:"isAdmin,omitempty" json:"isAdmin"`
+	Email        string             `bson:"email" json:"email"`
+	JoinDate     time.Time          `bson:"joinDate,omitempty" json:"joinDate"`
+	LastLogin    time.Time          `bson:"lastLogin" json:"lastLogin"`
+	PasswordHash string             `bson:"passwordHash,omitempty" json:"passwordHash,omitempty"`
 }

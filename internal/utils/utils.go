@@ -26,7 +26,7 @@ func GetDataDir(subPath string) (string, error) {
 		return "", err
 	}
 	if !exists {
-		if err := os.Mkdir(path, 0777); err != nil {
+		if err := os.Mkdir(path, 0755); err != nil {
 			return "", err
 		}
 	}
@@ -130,4 +130,16 @@ func ToUTF8(input string) (string, error) {
 		return "", err
 	}
 	return string(utf8Bytes), nil
+}
+
+func IntPtr(i int) *int {
+	return &i
+}
+
+func StrPtr(str string) *string {
+	return &str
+}
+
+func Ptr[T any](v T) *T {
+	return &v
 }

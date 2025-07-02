@@ -1,6 +1,7 @@
 package services
 
 import (
+	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
@@ -18,6 +19,8 @@ type AlbumService interface {
 	GetAllAlbumsForUser(userId *primitive.ObjectID) ([]model.Album, utils.ServiceError)
 	// Get all medias in a given album
 	GetMedias(albumId *primitive.ObjectID) ([]model.MediaInAlbum, utils.ServiceError)
+	// Get a thumbnail image for the given album
+	GetAlbumThumbnail(albumId *primitive.ObjectID) (*string, []byte, utils.ServiceError)
 	// Add a media to the given album
 	AddMedia(mediaInAlbum *model.MediaInAlbum) utils.ServiceError
 	// Delete a media from an album
@@ -33,13 +36,14 @@ type albumService struct {
 	albumRepository        repository.AlbumRepository
 	mediaInAlbumRepository repository.MediaInAlbumRepository
 	sharedLinkRepository   repository.SharedLinkRepository
+	mediaRepository        repository.MediaRepository
 
 	// Service dependencies
 	albumAccessService AlbumAccessService
 }
 
-func NewAlbumService(albumRepository repository.AlbumRepository, mediaInAlbumRepository repository.MediaInAlbumRepository, albumAccessService AlbumAccessService, sharedLinkRepository repository.SharedLinkRepository) albumService {
-	return albumService{albumRepository, mediaInAlbumRepository, sharedLinkRepository, albumAccessService}
+func NewAlbumService(albumRepository repository.AlbumRepository, mediaInAlbumRepository repository.MediaInAlbumRepository, albumAccessService AlbumAccessService, sharedLinkRepository repository.SharedLinkRepository, mediaRepository repository.MediaRepository) albumService {
+	return albumService{albumRepository, mediaInAlbumRepository, sharedLinkRepository, mediaRepository, albumAccessService}
 }
 
 func (s albumService) Create(album *model.Album) (*primitive.ObjectID, utils.ServiceError) {
@@ -90,6 +94,33 @@ func (s albumService) GetMedias(albumId *primitive.ObjectID) ([]model.MediaInAlb
 		return nil, utils.NewServiceError(http.StatusNotFound, "no medias found for this album")
 	}
 	return medias, nil
+}
+
+func (s albumService) GetAlbumThumbnail(albumId *primitive.ObjectID) (*string, []byte, utils.ServiceError) {
+	medias, svcErr := s.GetMedias(albumId)
+	if svcErr != nil {
+		return nil, nil, svcErr
+	}
+	if len(medias) == 0 {
+		return nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't generate a thumbnail for this album")
+	}
+
+	media, err := s.mediaRepository.Get(medias[0].MediaId)
+	if err != nil || media == nil {
+		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "internal server error while generating thumbnail")
+	}
+
+	mediaDirectory, err := utils.GetDataDir(common.COMPRESSED_DIRECTORY)
+	if err != nil {
+		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "internal server error while generating thumbnail")
+	}
+
+	mimeType, data, err := readMediaFromStorage(&mediaDirectory, media.StorageFileName)
+	if err != nil || mimeType == nil || data == nil {
+		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't generate thumbnail for this album")
+	}
+
+	return mimeType, data, nil
 }
 
 func (s albumService) AddMedia(mediaInAlbum *model.MediaInAlbum) utils.ServiceError {

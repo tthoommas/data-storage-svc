@@ -77,6 +77,11 @@ func main() {
 						Destination: &internal.DATA_DIRECTORY,
 						Required:    true,
 					},
+					&cli.StringFlag{
+						Name:        "jwt-key",
+						Destination: &internal.JWT_KEY,
+						Value:       "security/jwt_key",
+					},
 				},
 			},
 		},
