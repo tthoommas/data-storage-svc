@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"data-storage-svc/internal"
+	"data-storage-svc/internal/compression"
 	"data-storage-svc/internal/deployment"
 	"log"
 	"log/slog"
@@ -28,6 +29,9 @@ func main() {
 					} else {
 						slog.SetLogLoggerLevel(slog.LevelError)
 					}
+					// Start the compression task
+					go compression.CompressionTask(internal.COMPRESSION_TASK_PERIOD)
+					// Start the API
 					deployment.StartApi()
 					return nil
 				},
@@ -81,6 +85,12 @@ func main() {
 						Name:        "jwt-key",
 						Destination: &internal.JWT_KEY,
 						Value:       "security/jwt_key",
+					},
+					&cli.IntFlag{
+						Name:        "compression-interval",
+						Aliases:     []string{"ci"},
+						Destination: &internal.COMPRESSION_TASK_PERIOD,
+						Value:       30,
 					},
 				},
 			},

@@ -3,9 +3,11 @@ package services
 import (
 	"bytes"
 	"data-storage-svc/internal/api/common"
+	"data-storage-svc/internal/compression"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -57,6 +59,8 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if data == nil {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "could't create requested file, no content provided")
 	}
+	defer data.Close()
+
 	fileHeader := make([]byte, 512)
 	n, err := data.Read(fileHeader)
 	if err != nil || n != 512 {
@@ -91,13 +95,14 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
-
+	defer outFile.Close()
 	multi := io.MultiReader(bytes.NewReader(fileHeader), data)
 	_, err = io.Copy(outFile, multi)
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
 	}
-
+	// Add this media to the compression queue
+	compression.AddToCompressQueue(originalStorageFileName)
 	return mediaId, nil
 }
 
@@ -125,6 +130,10 @@ func (s mediaService) GetData(storageFileName string, compressed bool) (*os.File
 	// Open file
 	file, err := os.Open(filepath.Join(mediaDirectory, storageFileName))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// Compressed version does not exists, schedule it
+			compression.AddToCompressQueue(storageFileName)
+		}
 		return nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't open requested file")
 	}
 	fileInfo, err := file.Stat()

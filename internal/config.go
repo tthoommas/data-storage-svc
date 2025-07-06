@@ -8,3 +8,4 @@ var DEBUG bool
 var DATA_DIRECTORY string
 var API_DOMAIN string
 var JWT_KEY string
+var COMPRESSION_TASK_PERIOD int64
