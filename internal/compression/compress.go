@@ -1,16 +1,13 @@
-package utils
+package compression
 
 import (
+	"data-storage-svc/internal/utils"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"os"
 	"os/exec"
-	"slices"
 )
 
 var isFfmpegInstalled *bool = nil
-var ACCEPTED_FILE_EXTENSIONS = []string{"jpg", "jpeg", "png", "mp4"}
 
 func CompressMedia(originalFilePath, destinationFilePath string, compressionLevel int) error {
 	if compressionLevel < 2 || compressionLevel > 32 {
@@ -24,11 +21,11 @@ func CompressMedia(originalFilePath, destinationFilePath string, compressionLeve
 		panic("ffmpeg is not installed on this system, cannot compress media")
 	}
 
-	h, err := GetFileHeader(originalFilePath)
+	h, err := utils.GetFileHeader(originalFilePath)
 	if err != nil {
 		return err
 	}
-	mimeType, _, _ := CheckFileExtension(h)
+	mimeType, _, _ := utils.CheckFileExtension(h)
 
 	var compressCmd *exec.Cmd
 	switch mimeType {
@@ -46,43 +43,4 @@ func CompressMedia(originalFilePath, destinationFilePath string, compressionLeve
 		return err
 	}
 	return nil
-}
-
-func CheckFileExtension(fileHeader []byte) (string, string, bool) {
-	mimeType := http.DetectContentType(fileHeader)
-	extension := mimeTypeToFileExtension(mimeType)
-	return mimeType, extension, slices.Contains(ACCEPTED_FILE_EXTENSIONS, extension)
-}
-
-func GetFileHeader(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	fileHeader := make([]byte, 512)
-	_, err = file.Read(fileHeader)
-	if err != nil {
-		return nil, err
-	}
-
-	return fileHeader, nil
-}
-
-func mimeTypeToFileExtension(mimeType string) string {
-	switch mimeType {
-	case "image/jpeg":
-		return "jpg"
-	case "image/png":
-		return "png"
-	case "video/mp4":
-		return "mp4"
-	case "image/heic":
-		return "heic"
-	case "image/gif":
-		return "gif"
-	default:
-		return ""
-	}
 }

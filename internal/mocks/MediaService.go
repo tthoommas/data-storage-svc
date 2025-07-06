@@ -8,7 +8,11 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	os "os"
+
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
+
+	time "time"
 
 	utils "data-storage-svc/internal/utils"
 )
@@ -19,7 +23,7 @@ type MediaService struct {
 }
 
 // Create provides a mock function with given fields: fileName, uploader, uploadedViaSharedLink, data
-func (_m *MediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
+func (_m *MediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
 	ret := _m.Called(fileName, uploader, uploadedViaSharedLink, data)
 
 	if len(ret) == 0 {
@@ -28,10 +32,10 @@ func (_m *MediaService) Create(fileName string, uploader *primitive.ObjectID, up
 
 	var r0 *primitive.ObjectID
 	var r1 utils.ServiceError
-	if rf, ok := ret.Get(0).(func(string, *primitive.ObjectID, bool, *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)); ok {
+	if rf, ok := ret.Get(0).(func(string, *primitive.ObjectID, bool, io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)); ok {
 		return rf(fileName, uploader, uploadedViaSharedLink, data)
 	}
-	if rf, ok := ret.Get(0).(func(string, *primitive.ObjectID, bool, *io.ReadCloser) *primitive.ObjectID); ok {
+	if rf, ok := ret.Get(0).(func(string, *primitive.ObjectID, bool, io.ReadCloser) *primitive.ObjectID); ok {
 		r0 = rf(fileName, uploader, uploadedViaSharedLink, data)
 	} else {
 		if ret.Get(0) != nil {
@@ -39,7 +43,7 @@ func (_m *MediaService) Create(fileName string, uploader *primitive.ObjectID, up
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, *primitive.ObjectID, bool, *io.ReadCloser) utils.ServiceError); ok {
+	if rf, ok := ret.Get(1).(func(string, *primitive.ObjectID, bool, io.ReadCloser) utils.ServiceError); ok {
 		r1 = rf(fileName, uploader, uploadedViaSharedLink, data)
 	} else {
 		if ret.Get(1) != nil {
@@ -167,32 +171,32 @@ func (_m *MediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, util
 }
 
 // GetData provides a mock function with given fields: storageFileName, compressed
-func (_m *MediaService) GetData(storageFileName string, compressed bool) (*string, []byte, utils.ServiceError) {
+func (_m *MediaService) GetData(storageFileName string, compressed bool) (*os.File, *time.Time, utils.ServiceError) {
 	ret := _m.Called(storageFileName, compressed)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetData")
 	}
 
-	var r0 *string
-	var r1 []byte
+	var r0 *os.File
+	var r1 *time.Time
 	var r2 utils.ServiceError
-	if rf, ok := ret.Get(0).(func(string, bool) (*string, []byte, utils.ServiceError)); ok {
+	if rf, ok := ret.Get(0).(func(string, bool) (*os.File, *time.Time, utils.ServiceError)); ok {
 		return rf(storageFileName, compressed)
 	}
-	if rf, ok := ret.Get(0).(func(string, bool) *string); ok {
+	if rf, ok := ret.Get(0).(func(string, bool) *os.File); ok {
 		r0 = rf(storageFileName, compressed)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*string)
+			r0 = ret.Get(0).(*os.File)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, bool) []byte); ok {
+	if rf, ok := ret.Get(1).(func(string, bool) *time.Time); ok {
 		r1 = rf(storageFileName, compressed)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).([]byte)
+			r1 = ret.Get(1).(*time.Time)
 		}
 	}
 

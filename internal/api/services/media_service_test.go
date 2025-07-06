@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-	"strings"
 	"testing"
 	"time"
 
@@ -45,20 +44,12 @@ func TestCreate(t *testing.T) {
 			expectedErrorCode:   utils.IntPtr(400),
 		},
 		{
-			name:                "Unsupported extension",
-			uploader:            primitive.NewObjectID(),
+			name:                "Invalid extension but allowed media type",
+			uploader:            ObjIdFromHex("67fbd784c491ff384ee6287d"),
 			filename:            "myfile.exe",
 			data:                getData("cat.jpg"),
 			uploadViaSharedLink: false,
-			expectedErrorCode:   utils.IntPtr(400),
-		},
-		{
-			name:                "Invalid file name",
-			uploader:            primitive.NewObjectID(),
-			filename:            "toto",
-			data:                getData("cat.jpg"),
-			uploadViaSharedLink: false,
-			expectedErrorCode:   utils.IntPtr(400),
+			expectedErrorCode:   nil,
 		},
 		{
 			name:                "Create JPG success",
@@ -109,6 +100,20 @@ func TestCreate(t *testing.T) {
 		return true
 	})).Return(utils.Ptr(primitive.NewObjectID()), nil).Once()
 
+	// Expect create call for exe
+	mediaRepositoryMock.On("Create", mock.MatchedBy(func(media *model.Media) bool {
+		if *media.OriginalFileName != "myfile.exe" {
+			return false
+		}
+		if media.UploadedBy.Hex() != "67fbd784c491ff384ee6287d" {
+			return false
+		}
+		if time.Since(*media.UploadTime).Seconds() > 2 {
+			return false
+		}
+		return true
+	})).Return(utils.Ptr(primitive.NewObjectID()), nil).Once()
+
 	mediaInAlbumRepositoryMock := mocks.MediaInAlbumRepository{}
 	mediaAccessServiceMock := mocks.MediaAccessService{}
 	albumServiceMock := mocks.AlbumService{}
@@ -117,7 +122,7 @@ func TestCreate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			createdId, err := mediaService.Create(tc.filename, &tc.uploader, tc.uploadViaSharedLink, &tc.data)
+			createdId, err := mediaService.Create(tc.filename, &tc.uploader, tc.uploadViaSharedLink, tc.data)
 			if tc.expectedErrorCode != nil {
 				assert.Nil(t, createdId)
 				assert.NotNil(t, err)
@@ -132,29 +137,9 @@ func TestCreate(t *testing.T) {
 
 	originals, _ := utils.GetDataDir("originalMedias")
 	originalsFiles, _ := os.ReadDir(originals)
-	originalFileNames := []string{}
-	originalFileExtensions := []string{}
 
-	for _, f := range originalsFiles {
-		r := strings.Split(f.Name(), ".")
-		originalFileNames = append(originalFileNames, r[0])
-		originalFileExtensions = append(originalFileExtensions, r[1])
-	}
-
-	compressed, _ := utils.GetDataDir("compressedMedias")
-	compressedFiles, _ := os.ReadDir(compressed)
-	compressedFileNames := []string{}
-	for _, f := range compressedFiles {
-		r := strings.Split(f.Name(), ".")
-		compressedFileNames = append(compressedFileNames, r[0])
-		// Assert we only have jpg in the compressed foleder, whatever is the original extension
-		assert.Equal(t, "jpg", r[1])
-	}
-
-	// Assert we have exactly one compressed file for each original file with the same name
-	assert.Equal(t, originalFileNames, compressedFileNames)
-	// Assert file extensions are preserved for original files
-	assert.ElementsMatch(t, []string{"jpg", "png"}, originalFileExtensions)
+	// Assert all uploaded files have been saved, compression is done after
+	assert.Equal(t, 3, len(originalsFiles))
 }
 
 func TestMemory(t *testing.T) {
@@ -182,7 +167,7 @@ func TestMemory(t *testing.T) {
 
 	for range 100 {
 		data := getData("big_image.jpg")
-		newId, err := mediaService.Create("newFile.jpg", &uploader, false, &data)
+		newId, err := mediaService.Create("newFile.jpg", &uploader, false, data)
 		assert.NotNil(t, newId)
 		assert.Nil(t, err)
 	}

@@ -91,7 +91,7 @@ func (e *mediaEndpoint) Create(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	createdId, svcErr := e.mediaService.Create(fileName, addedById, isSharedLink, &c.Request.Body)
+	createdId, svcErr := e.mediaService.Create(fileName, addedById, isSharedLink, c.Request.Body)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
@@ -144,13 +144,13 @@ func (e *mediaEndpoint) Get(c *gin.Context) {
 		return
 	}
 	// Get the media data
-	mimeType, data, svcErr := e.mediaService.GetData(*media.StorageFileName, compressedQuality)
+	mediaFile, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, compressedQuality)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
 
-	c.Data(http.StatusOK, *mimeType, data)
+	http.ServeContent(c.Writer, c.Request, "", *modTime, mediaFile)
 }
 
 func (e *mediaEndpoint) GetMetaData(c *gin.Context) {

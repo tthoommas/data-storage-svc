@@ -340,13 +340,19 @@ func (e *albumEndpoint) GetAlbumThumbnail(c *gin.Context) {
 		return
 	}
 
-	mimeType, data, svcErr := e.albumService.GetAlbumThumbnail(&albumId)
+	media, svcErr := e.albumService.GetAlbumThumbnail(&albumId)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
 
-	c.Data(http.StatusOK, *mimeType, data)
+	file, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, true)
+	if svcErr != nil {
+		svcErr.Apply(c)
+		return
+	}
+
+	http.ServeContent(c.Writer, c.Request, "", *modTime, file)
 }
 
 func (e *albumEndpoint) GetAllAccesses(c *gin.Context) {

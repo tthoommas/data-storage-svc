@@ -1,24 +1,15 @@
 package services
 
 import (
-<<<<<<< HEAD
 	"bytes"
-	"data-storage-svc/internal/model"
-	"data-storage-svc/internal/repository"
-	"data-storage-svc/internal/utils"
-=======
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
-	"errors"
-	"fmt"
->>>>>>> 77df506ac805c201e113e9415ea4117a190ce35a
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -29,11 +20,11 @@ import (
 
 type MediaService interface {
 	// Create a new media resource
-	Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)
+	Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
-	GetData(storageFileName string, compressed bool) (*string, []byte, utils.ServiceError)
+	GetData(storageFileName string, compressed bool) (*os.File, *time.Time, utils.ServiceError)
 	// Get the media metadata (i.e. exif data contained in original file)
 	GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError)
 	// Get all media accessible to a given user
@@ -59,13 +50,16 @@ func NewMediaService(mediaRepository repository.MediaRepository, mediaInAblumRep
 	return mediaService{mediaRepository, mediaInAblumRepository, mediaAccessService, albumService}
 }
 
-func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data *io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
+func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
 	if len(fileName) == 0 {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "no file name provided while uploading")
 	}
+	if data == nil {
+		return nil, utils.NewServiceError(http.StatusBadRequest, "could't create requested file, no content provided")
+	}
 	fileHeader := make([]byte, 512)
-	_, err := (*data).Read(fileHeader)
-	if err != nil {
+	n, err := data.Read(fileHeader)
+	if err != nil || n != 512 {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't read file header")
 	}
 	_, extension, isValid := utils.CheckFileExtension(fileHeader)
@@ -73,13 +67,11 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 		return nil, utils.NewServiceError(http.StatusBadRequest, "invalid file format")
 	}
 	targetFolderOriginal, err := utils.GetDataDir("originalMedias")
-	targetFolderCompressed, err2 := utils.GetDataDir("compressedMedias")
-	if err != nil || err2 != nil {
+	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
 	storageUUID := uuid.NewString()
 	originalStorageFileName := storageUUID + "." + extension
-	compressedStorageFileName := storageUUID + ".jpg" // Always use JPG for compression
 	uploadTime := time.Now()
 	mediaId, err := s.mediaRepository.Create(
 		&model.Media{
@@ -100,100 +92,15 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
 	}
 
-<<<<<<< HEAD
-	multi := io.MultiReader(bytes.NewReader(fileHeader), *data)
+	multi := io.MultiReader(bytes.NewReader(fileHeader), data)
 	_, err = io.Copy(outFile, multi)
-=======
-	_, err = io.Copy(outFile, *data)
-	(*data).Close()
-	outFile.Close()
-
->>>>>>> 77df506ac805c201e113e9415ea4117a190ce35a
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
-	}
-
-<<<<<<< HEAD
-	targetFileCompressed := filepath.Join(targetFolderCompressed, storageFileName)
-
-	if err := utils.CompressMedia(targetFileOriginal, targetFileCompressed, 23); err != nil {
-		slog.Debug("Failed to compress media", "error", err)
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't compress media")
-=======
-	// Save a compressed version using vips for max efficiency
-	targetFileCompressed := filepath.Join(targetFolderCompressed, compressedStorageFileName)
-	cmd := exec.Command("vips", "jpegsave", targetFileOriginal, targetFileCompressed,
-		"--Q=20", "--strip")
-	if err := cmd.Run(); err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "vips compression failed")
->>>>>>> 77df506ac805c201e113e9415ea4117a190ce35a
 	}
 
 	return mediaId, nil
 }
 
-<<<<<<< HEAD
-=======
-var MediaExtensionMimeType = map[string]string{
-	"jpg":  "image/jpeg",
-	"jpeg": "image/jpeg",
-	"png":  "image/png",
-	"gif":  "image/gif",
-	"heic": "image/heic",
-}
-
-func getExtension(filename *string) (string, error) {
-	parts := strings.Split(*filename, ".")
-	extension := ""
-	if len(parts) < 2 {
-		slog.Debug("Invalid filename, no extension", "filename", filename)
-		return "", errors.New("couldn't decode file extension")
-	} else {
-		extension = parts[len(parts)-1]
-	}
-	return strings.ToLower(extension), nil
-}
-
-func checkExtension(filename *string) (string, bool) {
-	extension, err := getExtension(filename)
-	if err != nil {
-		return "", false
-	}
-	isValid := MediaExtensionMimeType[extension]
-	slog.Debug("Examining file extension", "extension", extension, "accepted", isValid)
-	return extension, isValid != ""
-}
-
-func getMimeType(filename *string) (string, error) {
-	extension, err := getExtension(filename)
-	if err != nil {
-		return "", err
-	}
-	return MediaExtensionMimeType[extension], nil
-}
-
-func readMediaFromStorage(directory, storageFileName *string) (*string, []byte, error) {
-	if directory == nil || storageFileName == nil || len(*directory) == 0 || len(*storageFileName) == 0 {
-		return nil, nil, fmt.Errorf("couldn't read file with empty directory/filename")
-	}
-
-	mediaFilePath := filepath.Join(*directory, *storageFileName)
-	slog.Debug("Reading requested file", "filePath", mediaFilePath)
-	data, err := os.ReadFile(mediaFilePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("couldn't find media")
-	}
-
-	// Infer mime type and send the media
-	mimeType, err := getMimeType(storageFileName)
-	if err != nil {
-		slog.Debug("Cannot infer file mime type", "error", err, "mediaFilePath", mediaFilePath)
-		return nil, nil, fmt.Errorf("couldn't find media")
-	}
-	return &mimeType, data, nil
-}
-
->>>>>>> 77df506ac805c201e113e9415ea4117a190ce35a
 func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError) {
 	media, err := s.mediaRepository.Get(mediaId)
 	if err != nil {
@@ -202,40 +109,30 @@ func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.
 	return media, nil
 }
 
-func (s mediaService) GetData(storageFileName string, compressed bool) (*string, []byte, utils.ServiceError) {
-	// Read media to send it
+func (s mediaService) GetData(storageFileName string, compressed bool) (*os.File, *time.Time, utils.ServiceError) {
+	// Choose the compressed version if needed
 	directory := ""
 	if compressed {
 		directory = common.COMPRESSED_DIRECTORY
 	} else {
 		directory = common.ORIGINAL_MEDIA_DIRECTORY
 	}
+	// Use corresponding directory
 	mediaDirectory, err := utils.GetDataDir(directory)
 	if err != nil {
 		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
-
-	mimeType, data, err := readMediaFromStorage(&mediaDirectory, &storageFileName)
+	// Open file
+	file, err := os.Open(filepath.Join(mediaDirectory, storageFileName))
 	if err != nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find the requested media")
+		return nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't open requested file")
 	}
-<<<<<<< HEAD
-
-	// Infer mime type and send the media
-	fileHeader, err := utils.GetFileHeader(mediaFilePath)
+	fileInfo, err := file.Stat()
 	if err != nil {
-		slog.Debug("Couldn't read file header", "mediaFilePath", mediaFilePath, "error", err)
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
+		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't read file info")
 	}
-	mimeType, _, isValid := utils.CheckFileExtension(fileHeader)
-	if !isValid {
-		slog.Debug("Cannot infer file mime type", "mediaFilePath", mediaFilePath)
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
-	}
-	return &mimeType, data, nil
-=======
-	return mimeType, data, nil
->>>>>>> 77df506ac805c201e113e9415ea4117a190ce35a
+	modTime := fileInfo.ModTime()
+	return file, &modTime, nil
 }
 
 func (s mediaService) GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError) {

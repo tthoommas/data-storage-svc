@@ -162,44 +162,35 @@ func (_m *AlbumService) GetAlbumById(albumId *primitive.ObjectID) (*model.Album,
 }
 
 // GetAlbumThumbnail provides a mock function with given fields: albumId
-func (_m *AlbumService) GetAlbumThumbnail(albumId *primitive.ObjectID) (*string, []byte, utils.ServiceError) {
+func (_m *AlbumService) GetAlbumThumbnail(albumId *primitive.ObjectID) (*model.Media, utils.ServiceError) {
 	ret := _m.Called(albumId)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetAlbumThumbnail")
 	}
 
-	var r0 *string
-	var r1 []byte
-	var r2 utils.ServiceError
-	if rf, ok := ret.Get(0).(func(*primitive.ObjectID) (*string, []byte, utils.ServiceError)); ok {
+	var r0 *model.Media
+	var r1 utils.ServiceError
+	if rf, ok := ret.Get(0).(func(*primitive.ObjectID) (*model.Media, utils.ServiceError)); ok {
 		return rf(albumId)
 	}
-	if rf, ok := ret.Get(0).(func(*primitive.ObjectID) *string); ok {
+	if rf, ok := ret.Get(0).(func(*primitive.ObjectID) *model.Media); ok {
 		r0 = rf(albumId)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*string)
+			r0 = ret.Get(0).(*model.Media)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(*primitive.ObjectID) []byte); ok {
+	if rf, ok := ret.Get(1).(func(*primitive.ObjectID) utils.ServiceError); ok {
 		r1 = rf(albumId)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).([]byte)
+			r1 = ret.Get(1).(utils.ServiceError)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(*primitive.ObjectID) utils.ServiceError); ok {
-		r2 = rf(albumId)
-	} else {
-		if ret.Get(2) != nil {
-			r2 = ret.Get(2).(utils.ServiceError)
-		}
-	}
-
-	return r0, r1, r2
+	return r0, r1
 }
 
 // GetAllAlbumsForUser provides a mock function with given fields: userId

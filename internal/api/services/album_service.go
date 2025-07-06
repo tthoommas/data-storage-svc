@@ -1,7 +1,6 @@
 package services
 
 import (
-	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
@@ -20,7 +19,7 @@ type AlbumService interface {
 	// Get all medias in a given album
 	GetMedias(albumId *primitive.ObjectID) ([]model.MediaInAlbum, utils.ServiceError)
 	// Get a thumbnail image for the given album
-	GetAlbumThumbnail(albumId *primitive.ObjectID) (*string, []byte, utils.ServiceError)
+	GetAlbumThumbnail(albumId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Add a media to the given album
 	AddMedia(mediaInAlbum *model.MediaInAlbum) utils.ServiceError
 	// Delete a media from an album
@@ -96,31 +95,21 @@ func (s albumService) GetMedias(albumId *primitive.ObjectID) ([]model.MediaInAlb
 	return medias, nil
 }
 
-func (s albumService) GetAlbumThumbnail(albumId *primitive.ObjectID) (*string, []byte, utils.ServiceError) {
+func (s albumService) GetAlbumThumbnail(albumId *primitive.ObjectID) (*model.Media, utils.ServiceError) {
 	medias, svcErr := s.GetMedias(albumId)
 	if svcErr != nil {
-		return nil, nil, svcErr
+		return nil, svcErr
 	}
 	if len(medias) == 0 {
-		return nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't generate a thumbnail for this album")
+		return nil, utils.NewServiceError(http.StatusNotFound, "couldn't generate a thumbnail for this album")
 	}
 
 	media, err := s.mediaRepository.Get(medias[0].MediaId)
 	if err != nil || media == nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "internal server error while generating thumbnail")
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "internal server error while generating thumbnail")
 	}
 
-	mediaDirectory, err := utils.GetDataDir(common.COMPRESSED_DIRECTORY)
-	if err != nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "internal server error while generating thumbnail")
-	}
-
-	mimeType, data, err := readMediaFromStorage(&mediaDirectory, media.StorageFileName)
-	if err != nil || mimeType == nil || data == nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't generate thumbnail for this album")
-	}
-
-	return mimeType, data, nil
+	return media, nil
 }
 
 func (s albumService) AddMedia(mediaInAlbum *model.MediaInAlbum) utils.ServiceError {
