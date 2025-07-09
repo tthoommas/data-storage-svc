@@ -346,11 +346,12 @@ func (e *albumEndpoint) GetAlbumThumbnail(c *gin.Context) {
 		return
 	}
 
-	file, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, true)
+	mimeType, file, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, true)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
+	c.Header("Content-Type", *mimeType)
 
 	http.ServeContent(c.Writer, c.Request, "", *modTime, file)
 }

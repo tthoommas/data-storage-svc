@@ -26,7 +26,7 @@ type MediaService interface {
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
-	GetData(storageFileName string, compressed bool) (*os.File, *time.Time, utils.ServiceError)
+	GetData(storageFileName string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError)
 	// Get the media metadata (i.e. exif data contained in original file)
 	GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError)
 	// Get all media accessible to a given user
@@ -114,7 +114,7 @@ func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.
 	return media, nil
 }
 
-func (s mediaService) GetData(storageFileName string, compressed bool) (*os.File, *time.Time, utils.ServiceError) {
+func (s mediaService) GetData(storageFileName string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError) {
 	// Choose the compressed version if needed
 	directory := ""
 	if compressed {
@@ -125,23 +125,29 @@ func (s mediaService) GetData(storageFileName string, compressed bool) (*os.File
 	// Use corresponding directory
 	mediaDirectory, err := utils.GetDataDir(directory)
 	if err != nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
+		return nil, nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 	// Open file
-	file, err := os.Open(filepath.Join(mediaDirectory, storageFileName))
+	filepath := filepath.Join(mediaDirectory, storageFileName)
+	file, err := os.Open(filepath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// Compressed version does not exists, schedule it
 			compression.AddToCompressQueue(storageFileName)
 		}
-		return nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't open requested file")
+		return nil, nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't open requested file")
 	}
+	fileheader, err := utils.GetFileHeader(filepath)
+	if err != nil {
+		return nil, nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't get media mime type")
+	}
+	mimeType, _, _ := utils.CheckFileExtension(fileheader)
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't read file info")
+		return nil, nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't read file info")
 	}
 	modTime := fileInfo.ModTime()
-	return file, &modTime, nil
+	return &mimeType, file, &modTime, nil
 }
 
 func (s mediaService) GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError) {

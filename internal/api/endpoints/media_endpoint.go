@@ -49,6 +49,7 @@ func NewMediaEndpoint(
 			{Method: "POST", Path: ""}:              {mediaEndpoint.Create},
 			{Method: "GET", Path: ""}:               {mediaEndpoint.List},
 			{Method: "GET", Path: "/:mediaId"}:      {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
+			{Method: "HEAD", Path: "/:mediaId"}:     {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
 			{Method: "GET", Path: "/:mediaId/meta"}: {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.GetMetaData},
 			{Method: "DELETE", Path: "/:mediaId"}:   {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Delete},
 		},
@@ -139,13 +140,16 @@ func (e *mediaEndpoint) Get(c *gin.Context) {
 		return
 	}
 	// Get the media data
-	mediaFile, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, compressedQuality)
+	mimeType, mediaFile, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, compressedQuality)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return
 	}
+	c.Header("Content-Type", *mimeType)
 
-	http.ServeContent(c.Writer, c.Request, "", *modTime, mediaFile)
+	if c.Request.Method == "GET" {
+		http.ServeContent(c.Writer, c.Request, "", *modTime, mediaFile)
+	}
 }
 
 func (e *mediaEndpoint) GetMetaData(c *gin.Context) {
