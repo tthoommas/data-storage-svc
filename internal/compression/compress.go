@@ -67,8 +67,8 @@ func compressImage(originalFilePath string, destinationFolder string) *exec.Cmd 
 	originalFile := filepath.Base(originalFilePath)
 	return exec.Command("ffmpeg",
 		"-i", originalFilePath,
-		"-vf", "scale=640:-1",
-		"-q:v", "23",
+		"-vf", "scale=720:-1",
+		"-q:v", "6",
 		"-y",
 		filepath.Join(destinationFolder, originalFile))
 }
@@ -78,9 +78,9 @@ func compressMP4HW(originalFilePath string, destinationFolder string) *exec.Cmd 
 	originalFileName := filepath.Base(originalFilePath)
 	return exec.Command("ffmpeg",
 		"-i", originalFilePath,
-		"-vf", "scale='if(gt(iw,1280),1280,trunc(iw/16)*16)':'if(gt(ih,720),720,trunc(ih/16)*16)',fps=40",
+		"-vf", "scale='if(gt(iw,1280),1280,trunc(iw/16)*16)':'if(gt(ih,720),720,trunc(ih/16)*16)',fps=30",
 		"-c:v", "h264_v4l2m2m",
-		"-b:v", "1M",
+		"-b:v", "4M",
 		"-c:a", "copy",
 		"-y",
 		filepath.Join(destinationFolder, originalFileName))
@@ -90,9 +90,9 @@ func compressMP4Soft(originalFilePath string, destinationFolder string) *exec.Cm
 	originalFileName := filepath.Base(originalFilePath)
 	return exec.Command("ffmpeg",
 		"-i", originalFilePath,
-		"-vf", "scale='if(gt(iw,1280),1280,trunc(iw/16)*16)':'if(gt(ih,720),720,trunc(ih/16)*16)',fps=40",
+		"-vf", "scale='if(gt(iw,1280),1280,trunc(iw/16)*16)':'if(gt(ih,720),720,trunc(ih/16)*16)',fps=30",
 		"-c:v", "libx264",
-		"-b:v", "1M",
+		"-b:v", "4M",
 		"-preset", "ultrafast",
 		"-c:a", "copy",
 		"-y",

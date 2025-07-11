@@ -1,4 +1,4 @@
-FROM golang:1.22.2
+FROM golang:1.25rc2-bookworm
 
 
 ENV GIN_MODE=release
@@ -9,7 +9,7 @@ COPY go.mod go.sum ./
 COPY cmd/ ./cmd
 COPY internal/ ./internal
 
-RUN apt-get update && apt-get install -y libvips libvips-tools libvips-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 RUN GOOS=linux go build -o /album cmd/data-storage/main.go 
 
