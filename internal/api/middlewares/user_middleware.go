@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"context"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/api/security"
 	"data-storage-svc/internal/repository"
@@ -41,6 +42,8 @@ func UserMiddleware(userRepository repository.UserRepository) gin.HandlerFunc {
 			}
 			// Store the user in context
 			ctx.Set(common.USER, user)
+			newCtx := context.WithValue(ctx.Request.Context(), common.USER, user)
+			ctx.Request = ctx.Request.WithContext(newCtx)
 		}
 		ctx.Next()
 	}

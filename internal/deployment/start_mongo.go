@@ -76,7 +76,7 @@ func StartMongoDB() error {
 		}
 	} else if len(containers) > 1 {
 		slog.Error("Found several mongo containers")
-		return errors.New("found multiple existing mongo containers")
+		panic(errors.New("found multiple existing mongo containers"))
 	} else {
 		// Found exactly one mongo container
 		mongoContainerID = containers[0].ID

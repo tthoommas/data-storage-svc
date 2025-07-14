@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"data-storage-svc/internal"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/model"
@@ -99,6 +100,29 @@ func GetUserOrSharedLink(request *gin.Context) (*model.User, *model.SharedLink, 
 	}
 
 	if linkExists {
+		if typedLink, ok := rawSharedLink.(*model.SharedLink); ok {
+			sharedLink = typedLink
+		}
+	}
+	return user, sharedLink, nil
+}
+
+func GetUserOrSharedLinkGeneric(context context.Context) (*model.User, *model.SharedLink, error) {
+	rawUser := context.Value(common.USER)
+	rawSharedLink := context.Value(common.SHARED_LINK)
+	if rawUser == nil && rawSharedLink == nil {
+		return nil, nil, errors.New("couldn't find user nor token")
+	}
+	var user *model.User = nil
+	var sharedLink *model.SharedLink = nil
+
+	if rawUser != nil {
+		if typedUser, ok := rawUser.(*model.User); ok {
+			user = typedUser
+		}
+	}
+
+	if rawSharedLink != nil {
 		if typedLink, ok := rawSharedLink.(*model.SharedLink); ok {
 			sharedLink = typedLink
 		}

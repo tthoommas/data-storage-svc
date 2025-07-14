@@ -5,16 +5,26 @@ import (
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/services"
 	"data-storage-svc/internal/utils"
-	"log/slog"
+	"fmt"
+	"log"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/tus/tusd/v2/pkg/filelocker"
+	"github.com/tus/tusd/v2/pkg/filestore"
+	"github.com/tus/tusd/v2/pkg/handler"
+	tusd "github.com/tus/tusd/v2/pkg/handler"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type MediaEndpoint interface {
 	common.EndpointGroup
-	// Upload a new media
-	Create(c *gin.Context)
+	// Hook called before file upload starts
+	PreCreate(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.FileInfoChanges, error)
+	// Hook called before final http response is sent
+	PreFinish(hook tusd.HookEvent) (tusd.HTTPResponse, error)
 	// List all media accessible to the given user
 	List(c *gin.Context)
 	// Get a specific media by id
@@ -41,17 +51,48 @@ func NewMediaEndpoint(
 		mediaAccessService: mediaAccessService,
 	}
 
+	// Create the TUS store and locker
+	targetFolderOriginal, err := utils.GetDataDir("originalMedias")
+
+	store := filestore.New(targetFolderOriginal)
+	locker := filelocker.New(targetFolderOriginal)
+	composer := tusd.NewStoreComposer()
+	store.UseIn(composer)
+	locker.UseIn(composer)
+
+	// Create an unrouted handler, we will route manually with gin
+	handler, err := tusd.NewUnroutedHandler(tusd.Config{
+		BasePath:                "/api/media/chunkupload",
+		StoreComposer:           composer,
+		NotifyCompleteUploads:   false,
+		RespectForwardedHeaders: true,
+		PreUploadCreateCallback: func(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.FileInfoChanges, error) {
+			return mediaEndpoint.PreCreate(hook)
+		},
+		PreFinishResponseCallback: func(hook tusd.HookEvent) (tusd.HTTPResponse, error) {
+			return mediaEndpoint.PreFinish(hook)
+		},
+	})
+
+	if err != nil {
+		log.Fatalf("unable to create handler: %s", err)
+	}
+
 	endpoint := common.NewEndpoint(
 		"Medias",
 		"/media",
 		commonMiddlewares,
 		map[common.MethodPath][]gin.HandlerFunc{
-			{Method: "POST", Path: ""}:              {mediaEndpoint.Create},
 			{Method: "GET", Path: ""}:               {mediaEndpoint.List},
 			{Method: "GET", Path: "/:mediaId"}:      {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
 			{Method: "HEAD", Path: "/:mediaId"}:     {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Get},
 			{Method: "GET", Path: "/:mediaId/meta"}: {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.GetMetaData},
 			{Method: "DELETE", Path: "/:mediaId"}:   {middlewares.PathParamIdMiddleware("mediaId"), mediaEndpoint.Delete},
+			// Handle media chunk uploads with TUS to support huge file upload
+			{Method: "POST", Path: "/chunkupload"}:             {gin.WrapH(http.StripPrefix("/media/chunkupload", http.HandlerFunc(handler.PostFile)))},
+			{Method: "HEAD", Path: "/chunkupload/:uploadId"}:   {gin.WrapH(http.StripPrefix("/media/chunkupload", http.HandlerFunc(handler.HeadFile)))},
+			{Method: "PATCH", Path: "/chunkupload/:uploadId"}:  {gin.WrapH(http.StripPrefix("/media/chunkupload", http.HandlerFunc(handler.PatchFile)))},
+			{Method: "DELETE", Path: "/chunkupload/:uploadId"}: {gin.WrapH(http.StripPrefix("/media/chunkupload", http.HandlerFunc(handler.DelFile)))},
 		},
 		permissionsManager,
 	)
@@ -60,43 +101,101 @@ func NewMediaEndpoint(
 	return &mediaEndpoint
 }
 
-func (e *mediaEndpoint) Create(c *gin.Context) {
-	user, sharedLink, err := utils.GetUserOrSharedLink(c)
-	if err != nil {
-		return
+func (e *mediaEndpoint) PreCreate(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.FileInfoChanges, error) {
+	// Retrieve user that is uploading a file
+	user, sharedLink, err := utils.GetUserOrSharedLinkGeneric(hook.Context)
+
+	abortUnauthorized := func() (tusd.HTTPResponse, tusd.FileInfoChanges, error) {
+		return handler.HTTPResponse{
+			StatusCode: 401,
+			Body:       `{"error": "Unauthorized"}`,
+			Header:     map[string]string{"Content-Type": "application/json"},
+		}, handler.FileInfoChanges{}, fmt.Errorf("unauthorized")
 	}
 
+	if err != nil {
+		return abortUnauthorized()
+	}
+
+	originalFilename := hook.Upload.MetaData["filename"]
+	originalFilename, err = utils.ToUTF8(originalFilename)
+
+	if err != nil || len(originalFilename) == 0 {
+		return abortUnauthorized()
+	}
+
+	mimeType := hook.Upload.MetaData["filetype"]
+	fileExtension, err := utils.MimeTypeToFileExtension(mimeType)
+	if err != nil {
+		return abortUnauthorized()
+	}
+
+	// Check permissions
 	if !e.GetPermissionsManager().CanCreateMedia(user, sharedLink) {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
+		return abortUnauthorized()
 	}
-
-	contentType := c.GetHeader("Content-Type")
-
-	if contentType != "application/octet-stream" {
-		slog.Debug("Invalid content type received while upload media", "content-type", contentType)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Expected Content-Type: application/octet-stream"})
-		return
-	}
-	fileName := c.GetHeader("Content-Disposition")
-
-	fileName, err = utils.ToUTF8(fileName)
+	storageFileName := uuid.NewString() + "." + fileExtension
+	dataDir, err := utils.GetDataDir("originalMedias")
 	if err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
-		slog.Debug("couldn't encode filename as utf-8", "err", err)
-		return
+		return abortUnauthorized()
 	}
-	addedById, isSharedLink, err := utils.GetUserIdOrLinkId(user, sharedLink)
-	if err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
+
+	changes := handler.FileInfoChanges{
+		Storage: map[string]string{
+			"Path": filepath.Join(dataDir, storageFileName),
+		},
+		MetaData: map[string]string{
+			"filename":         storageFileName,
+			"originalFilename": originalFilename,
+		},
 	}
-	createdId, svcErr := e.mediaService.Create(fileName, addedById, isSharedLink, c.Request.Body)
+
+	if user != nil {
+		changes.MetaData["userId"] = user.Id.Hex()
+	}
+
+	if sharedLink != nil {
+		changes.MetaData["sharedLinkId"] = sharedLink.Id.Hex()
+	}
+
+	return handler.HTTPResponse{}, changes, nil
+}
+
+func (e *mediaEndpoint) PreFinish(hook handler.HookEvent) (handler.HTTPResponse, error) {
+
+	// TODOOOO Check the file has an authorized extension
+	//fileHeader := make([]byte, 512)
+	//n, err := data.Read(fileHeader)
+	//if err != nil || n != 512 {
+	//	return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't read file header")
+	//}
+	//_, extension, isValid := utils.CheckFileExtension(fileHeader)
+	//if !isValid {
+	//	return nil, utils.NewServiceError(http.StatusBadRequest, "invalid file format")
+	//}
+
+	hexUserId := hook.Upload.MetaData["userId"]
+	hexSharedLinkId := hook.Upload.MetaData["sharedLinkId"]
+
+	userId, errUserId := primitive.ObjectIDFromHex(hexUserId)
+	_, errSharedId := primitive.ObjectIDFromHex(hexSharedLinkId)
+
+	var userIdPtr *primitive.ObjectID = nil
+	if errUserId == nil {
+		userIdPtr = &userId
+	}
+
+	mediaId, svcErr := e.mediaService.Create(hook.Upload.MetaData["originalFilename"], hook.Upload.MetaData["filename"], userIdPtr, errSharedId != nil)
 	if svcErr != nil {
-		svcErr.Apply(c)
-		return
+		return tusd.HTTPResponse{}, fmt.Errorf("couldn't create media")
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{"mediaId": createdId})
+	return handler.HTTPResponse{
+		StatusCode: 200,
+		Body:       fmt.Sprintf(`{"mediaId": "%s"}`, mediaId.String()),
+		Header: map[string]string{
+			"Content-Type": "application/json",
+		},
+	}, nil
 }
 
 func (e *mediaEndpoint) List(c *gin.Context) {

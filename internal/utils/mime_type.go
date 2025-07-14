@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"slices"
@@ -10,7 +11,7 @@ var ACCEPTED_FILE_EXTENSIONS = []string{"jpg", "jpeg", "png", "mp4"}
 
 func CheckFileExtension(fileHeader []byte) (string, string, bool) {
 	mimeType := http.DetectContentType(fileHeader)
-	extension := mimeTypeToFileExtension(mimeType)
+	extension, _ := MimeTypeToFileExtension(mimeType)
 	return mimeType, extension, slices.Contains(ACCEPTED_FILE_EXTENSIONS, extension)
 }
 
@@ -30,19 +31,19 @@ func GetFileHeader(filePath string) ([]byte, error) {
 	return fileHeader, nil
 }
 
-func mimeTypeToFileExtension(mimeType string) string {
+func MimeTypeToFileExtension(mimeType string) (string, error) {
 	switch mimeType {
 	case "image/jpeg":
-		return "jpg"
+		return "jpg", nil
 	case "image/png":
-		return "png"
+		return "png", nil
 	case "video/mp4":
-		return "mp4"
+		return "mp4", nil
 	case "image/heic":
-		return "heic"
+		return "heic", nil
 	case "image/gif":
-		return "gif"
+		return "gif", nil
 	default:
-		return ""
+		return "", fmt.Errorf("unknown mime type")
 	}
 }

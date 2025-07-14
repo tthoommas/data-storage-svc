@@ -1,14 +1,12 @@
 package services
 
 import (
-	"bytes"
 	"data-storage-svc/internal/api/common"
 	"data-storage-svc/internal/compression"
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,13 +14,12 @@ import (
 	"time"
 
 	"github.com/evanoberholster/imagemeta"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type MediaService interface {
 	// Create a new media resource
-	Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)
+	Create(originalFilename, storageFilename string, uploader *primitive.ObjectID, uploadedViaSharedLink bool) (*primitive.ObjectID, utils.ServiceError)
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
@@ -52,35 +49,12 @@ func NewMediaService(mediaRepository repository.MediaRepository, mediaInAblumRep
 	return mediaService{mediaRepository, mediaInAblumRepository, mediaAccessService, albumService}
 }
 
-func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
-	if len(fileName) == 0 {
-		return nil, utils.NewServiceError(http.StatusBadRequest, "no file name provided while uploading")
-	}
-	if data == nil {
-		return nil, utils.NewServiceError(http.StatusBadRequest, "could't create requested file, no content provided")
-	}
-	defer data.Close()
-
-	fileHeader := make([]byte, 512)
-	n, err := data.Read(fileHeader)
-	if err != nil || n != 512 {
-		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't read file header")
-	}
-	_, extension, isValid := utils.CheckFileExtension(fileHeader)
-	if !isValid {
-		return nil, utils.NewServiceError(http.StatusBadRequest, "invalid file format")
-	}
-	targetFolderOriginal, err := utils.GetDataDir("originalMedias")
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
-	}
-	storageUUID := uuid.NewString()
-	originalStorageFileName := storageUUID + "." + extension
+func (s mediaService) Create(originalFilename, storageFilename string, uploader *primitive.ObjectID, uploadedViaSharedLink bool) (*primitive.ObjectID, utils.ServiceError) {
 	uploadTime := time.Now()
 	mediaId, err := s.mediaRepository.Create(
 		&model.Media{
-			OriginalFileName:      &fileName,
-			StorageFileName:       &originalStorageFileName,
+			OriginalFileName:      &originalFilename,
+			StorageFileName:       &storageFilename,
 			UploadedBy:            uploader,
 			UploadTime:            &uploadTime,
 			UploadedViaSharedLink: uploadedViaSharedLink,
@@ -89,20 +63,8 @@ func (s mediaService) Create(fileName string, uploader *primitive.ObjectID, uplo
 	if err != nil {
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")
 	}
-	// Store original file on disk
-	targetFileOriginal := filepath.Join(targetFolderOriginal, originalStorageFileName)
-	outFile, err := os.Create(targetFileOriginal)
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't upload file")
-	}
-	defer outFile.Close()
-	multi := io.MultiReader(bytes.NewReader(fileHeader), data)
-	_, err = io.Copy(outFile, multi)
-	if err != nil {
-		return nil, utils.NewServiceError(http.StatusInternalServerError, "upload failed")
-	}
 	// Add this media to the compression queue
-	compression.AddToCompressQueue(originalStorageFileName)
+	compression.AddToCompressQueue(originalFilename)
 	return mediaId, nil
 }
 
