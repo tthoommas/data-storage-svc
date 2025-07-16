@@ -96,6 +96,7 @@ func (s mediaService) GetData(storageFileName string, compressed bool) (*string,
 		if errors.Is(err, os.ErrNotExist) {
 			// Compressed version does not exists, schedule it
 			compression.AddToCompressQueue(storageFileName)
+			return nil, nil, nil, utils.NewServiceError(http.StatusAccepted, "media is being compressed")
 		}
 		return nil, nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't open requested file")
 	}
