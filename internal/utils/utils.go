@@ -75,7 +75,7 @@ func DecodeBodyId(rawId string) (*primitive.ObjectID, ServiceError) {
 func GetUser(request *gin.Context) (*model.User, error) {
 	rawUser, _ := request.Get("user")
 	if user, ok := rawUser.(*model.User); !ok {
-		request.AbortWithStatus(http.StatusInternalServerError)
+		request.AbortWithStatus(http.StatusUnauthorized)
 		return nil, errors.New("couldn't find user")
 	} else {
 		return user, nil

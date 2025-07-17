@@ -11,6 +11,7 @@ import (
 	"data-storage-svc/internal/repository"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,12 +68,15 @@ func StartApi() {
 		sharedLinkEndpoint,
 	}
 
+	router.RedirectTrailingSlash = false
 	api := router.Group("", userMiddleware, sharedLinkMiddleware)
 	{
 		for _, endpoint := range endpointGroupsList {
 			endpointGroup := api.Group(endpoint.GetGroupUrl(), endpoint.GetCommonMiddlewares()...)
 			for methodAndPath, finalEndpoint := range endpoint.GetEndpointsList() {
-				endpointGroup.Handle(methodAndPath.Method, methodAndPath.Path, finalEndpoint...)
+				pathNoSlash := strings.TrimSuffix(methodAndPath.Path, "/")
+				endpointGroup.Handle(methodAndPath.Method, pathNoSlash, finalEndpoint...)
+				endpointGroup.Handle(methodAndPath.Method, pathNoSlash+"/", finalEndpoint...)
 			}
 		}
 	}
