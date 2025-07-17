@@ -191,7 +191,7 @@ func (e *mediaEndpoint) PreFinish(hook handler.HookEvent) (handler.HTTPResponse,
 	}
 	return handler.HTTPResponse{
 		StatusCode: 200,
-		Body:       fmt.Sprintf(`{"mediaId": "%s"}`, mediaId.String()),
+		Body:       fmt.Sprintf(`{"mediaId": "%s"}`, mediaId.Hex()),
 		Header: map[string]string{
 			"Content-Type": "application/json",
 		},
