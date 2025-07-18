@@ -4,7 +4,6 @@ package mocks
 
 import (
 	model "data-storage-svc/internal/model"
-	io "io"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -22,9 +21,9 @@ type MediaService struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: fileName, uploader, uploadedViaSharedLink, data
-func (_m *MediaService) Create(fileName string, uploader *primitive.ObjectID, uploadedViaSharedLink bool, data io.ReadCloser) (*primitive.ObjectID, utils.ServiceError) {
-	ret := _m.Called(fileName, uploader, uploadedViaSharedLink, data)
+// Create provides a mock function with given fields: originalFilename, storageFilename, uploader, uploadedViaSharedLink
+func (_m *MediaService) Create(originalFilename string, storageFilename string, uploader *primitive.ObjectID, uploadedViaSharedLink bool) (*primitive.ObjectID, utils.ServiceError) {
+	ret := _m.Called(originalFilename, storageFilename, uploader, uploadedViaSharedLink)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -32,19 +31,19 @@ func (_m *MediaService) Create(fileName string, uploader *primitive.ObjectID, up
 
 	var r0 *primitive.ObjectID
 	var r1 utils.ServiceError
-	if rf, ok := ret.Get(0).(func(string, *primitive.ObjectID, bool, io.ReadCloser) (*primitive.ObjectID, utils.ServiceError)); ok {
-		return rf(fileName, uploader, uploadedViaSharedLink, data)
+	if rf, ok := ret.Get(0).(func(string, string, *primitive.ObjectID, bool) (*primitive.ObjectID, utils.ServiceError)); ok {
+		return rf(originalFilename, storageFilename, uploader, uploadedViaSharedLink)
 	}
-	if rf, ok := ret.Get(0).(func(string, *primitive.ObjectID, bool, io.ReadCloser) *primitive.ObjectID); ok {
-		r0 = rf(fileName, uploader, uploadedViaSharedLink, data)
+	if rf, ok := ret.Get(0).(func(string, string, *primitive.ObjectID, bool) *primitive.ObjectID); ok {
+		r0 = rf(originalFilename, storageFilename, uploader, uploadedViaSharedLink)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*primitive.ObjectID)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, *primitive.ObjectID, bool, io.ReadCloser) utils.ServiceError); ok {
-		r1 = rf(fileName, uploader, uploadedViaSharedLink, data)
+	if rf, ok := ret.Get(1).(func(string, string, *primitive.ObjectID, bool) utils.ServiceError); ok {
+		r1 = rf(originalFilename, storageFilename, uploader, uploadedViaSharedLink)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(utils.ServiceError)
@@ -170,45 +169,54 @@ func (_m *MediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, util
 	return r0, r1
 }
 
-// GetData provides a mock function with given fields: storageFileName, compressed
-func (_m *MediaService) GetData(storageFileName string, compressed bool) (*os.File, *time.Time, utils.ServiceError) {
-	ret := _m.Called(storageFileName, compressed)
+// GetData provides a mock function with given fields: mediaId, storageFileName, compressed
+func (_m *MediaService) GetData(mediaId *primitive.ObjectID, storageFileName string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError) {
+	ret := _m.Called(mediaId, storageFileName, compressed)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetData")
 	}
 
-	var r0 *os.File
-	var r1 *time.Time
-	var r2 utils.ServiceError
-	if rf, ok := ret.Get(0).(func(string, bool) (*os.File, *time.Time, utils.ServiceError)); ok {
-		return rf(storageFileName, compressed)
+	var r0 *string
+	var r1 *os.File
+	var r2 *time.Time
+	var r3 utils.ServiceError
+	if rf, ok := ret.Get(0).(func(*primitive.ObjectID, string, bool) (*string, *os.File, *time.Time, utils.ServiceError)); ok {
+		return rf(mediaId, storageFileName, compressed)
 	}
-	if rf, ok := ret.Get(0).(func(string, bool) *os.File); ok {
-		r0 = rf(storageFileName, compressed)
+	if rf, ok := ret.Get(0).(func(*primitive.ObjectID, string, bool) *string); ok {
+		r0 = rf(mediaId, storageFileName, compressed)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*os.File)
+			r0 = ret.Get(0).(*string)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, bool) *time.Time); ok {
-		r1 = rf(storageFileName, compressed)
+	if rf, ok := ret.Get(1).(func(*primitive.ObjectID, string, bool) *os.File); ok {
+		r1 = rf(mediaId, storageFileName, compressed)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(*time.Time)
+			r1 = ret.Get(1).(*os.File)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(string, bool) utils.ServiceError); ok {
-		r2 = rf(storageFileName, compressed)
+	if rf, ok := ret.Get(2).(func(*primitive.ObjectID, string, bool) *time.Time); ok {
+		r2 = rf(mediaId, storageFileName, compressed)
 	} else {
 		if ret.Get(2) != nil {
-			r2 = ret.Get(2).(utils.ServiceError)
+			r2 = ret.Get(2).(*time.Time)
 		}
 	}
 
-	return r0, r1, r2
+	if rf, ok := ret.Get(3).(func(*primitive.ObjectID, string, bool) utils.ServiceError); ok {
+		r3 = rf(mediaId, storageFileName, compressed)
+	} else {
+		if ret.Get(3) != nil {
+			r3 = ret.Get(3).(utils.ServiceError)
+		}
+	}
+
+	return r0, r1, r2, r3
 }
 
 // GetMetaData provides a mock function with given fields: mediaId

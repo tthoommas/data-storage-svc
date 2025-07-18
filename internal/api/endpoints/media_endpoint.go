@@ -231,7 +231,7 @@ func (e *mediaEndpoint) Get(c *gin.Context) {
 		return
 	}
 	// Get the media data
-	mimeType, mediaFile, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, compressedQuality)
+	mimeType, mediaFile, modTime, svcErr := e.mediaService.GetData(&mediaId, *media.StorageFileName, media.CompressedFileName, compressedQuality)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return

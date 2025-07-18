@@ -19,7 +19,7 @@ func TestCompress(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.originalFile, func(t *testing.T) {
-			err := compression.CompressMedia(tc.originalFile, tc.destinationFile)
+			_, err := compression.CompressMedia(tc.originalFile, tc.destinationFile)
 			if (err != nil) != tc.expectError {
 				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
 			}

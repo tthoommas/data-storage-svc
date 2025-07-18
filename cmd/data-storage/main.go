@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"data-storage-svc/internal"
-	"data-storage-svc/internal/compression"
 	"data-storage-svc/internal/deployment"
 	"log"
 	"log/slog"
@@ -29,8 +28,6 @@ func main() {
 					} else {
 						slog.SetLogLoggerLevel(slog.LevelError)
 					}
-					// Start the compression task
-					go compression.CompressionTask(internal.COMPRESSION_TASK_PERIOD)
 					// Start the API
 					deployment.StartApi()
 					return nil

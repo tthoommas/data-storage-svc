@@ -346,7 +346,7 @@ func (e *albumEndpoint) GetAlbumThumbnail(c *gin.Context) {
 		return
 	}
 
-	mimeType, file, modTime, svcErr := e.mediaService.GetData(*media.StorageFileName, true)
+	mimeType, file, modTime, svcErr := e.mediaService.GetData(&media.Id, *media.StorageFileName, media.CompressedFileName, true)
 	if svcErr != nil {
 		svcErr.Apply(c)
 		return

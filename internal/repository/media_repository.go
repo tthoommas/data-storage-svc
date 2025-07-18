@@ -19,6 +19,8 @@ type MediaRepository interface {
 	GetAllUploadedBy(userId *primitive.ObjectID) ([]model.Media, error)
 	// Delete a media from media collection only (will not delete underlying file or any other link!)
 	Delete(mediaId *primitive.ObjectID) error
+	// Update a media
+	Update(mediaId *primitive.ObjectID, update bson.M) error
 }
 
 type mediaRepository struct {
@@ -74,8 +76,16 @@ func (r mediaRepository) GetAllUploadedBy(userId *primitive.ObjectID) ([]model.M
 	return medias, nil
 }
 
-func (r mediaRepository) Delete(MediaId *primitive.ObjectID) error {
-	filter := bson.M{"_id": MediaId}
+func (r mediaRepository) Delete(mediaId *primitive.ObjectID) error {
+	filter := bson.M{"_id": mediaId}
 	_, err := r.db.Collection(MEDIA_COLLECTION).DeleteOne(context.Background(), filter)
+	return err
+}
+
+func (r mediaRepository) Update(mediaId *primitive.ObjectID, update bson.M) error {
+	filter := bson.M{"_id": mediaId}
+	updateDoc := bson.M{"$set": update}
+
+	_, err := r.db.Collection(MEDIA_COLLECTION).UpdateOne(context.Background(), filter, updateDoc)
 	return err
 }

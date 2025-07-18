@@ -7,6 +7,7 @@ import (
 	"data-storage-svc/internal/api/middlewares"
 	"data-storage-svc/internal/api/security"
 	"data-storage-svc/internal/api/services"
+	"data-storage-svc/internal/compression"
 	"data-storage-svc/internal/database"
 	"data-storage-svc/internal/repository"
 	"fmt"
@@ -80,5 +81,9 @@ func StartApi() {
 			}
 		}
 	}
+
+	// Start the compression task
+	go compression.CompressionTask(internal.COMPRESSION_TASK_PERIOD, mediaRepository)
+
 	router.Run(fmt.Sprintf("%s:%d", internal.API_IP, internal.API_PORT))
 }

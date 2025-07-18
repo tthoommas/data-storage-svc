@@ -6,7 +6,6 @@ import (
 	"data-storage-svc/internal/model"
 	"data-storage-svc/internal/repository"
 	"data-storage-svc/internal/utils"
-	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,7 +23,7 @@ type MediaService interface {
 	// Get media by id
 	GetById(mediaId *primitive.ObjectID) (*model.Media, utils.ServiceError)
 	// Get the media data (i.e. bytes of the file stored on disk)
-	GetData(storageFileName string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError)
+	GetData(mediaId *primitive.ObjectID, storageFileName string, compressedFilename *string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError)
 	// Get the media metadata (i.e. exif data contained in original file)
 	GetMetaData(mediaId *primitive.ObjectID) (*model.MetaData, utils.ServiceError)
 	// Get all media accessible to a given user
@@ -80,7 +79,7 @@ func (s mediaService) Create(originalFilename, storageFilename string, uploader 
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")
 	}
 	// Add this media to the compression queue
-	compression.AddToCompressQueue(originalFilename)
+	compression.AddToCompressQueue(mediaId)
 	return mediaId, nil
 }
 
@@ -92,13 +91,20 @@ func (s mediaService) GetById(mediaId *primitive.ObjectID) (*model.Media, utils.
 	return media, nil
 }
 
-func (s mediaService) GetData(storageFileName string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError) {
+func (s mediaService) GetData(mediaId *primitive.ObjectID, storageFileName string, compressedFilename *string, compressed bool) (*string, *os.File, *time.Time, utils.ServiceError) {
 	// Choose the compressed version if needed
 	directory := ""
+	filename := ""
 	if compressed {
 		directory = common.COMPRESSED_DIRECTORY
+		if compressedFilename == nil {
+			compression.AddToCompressQueue(mediaId)
+			return nil, nil, nil, utils.NewServiceError(http.StatusAccepted, "media is being compressed")
+		}
+		filename = *compressedFilename
 	} else {
 		directory = common.ORIGINAL_MEDIA_DIRECTORY
+		filename = storageFileName
 	}
 	// Use corresponding directory
 	mediaDirectory, err := utils.GetDataDir(directory)
@@ -106,14 +112,9 @@ func (s mediaService) GetData(storageFileName string, compressed bool) (*string,
 		return nil, nil, nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't find media")
 	}
 	// Open file
-	filepath := filepath.Join(mediaDirectory, storageFileName)
+	filepath := filepath.Join(mediaDirectory, filename)
 	file, err := os.Open(filepath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// Compressed version does not exists, schedule it
-			compression.AddToCompressQueue(storageFileName)
-			return nil, nil, nil, utils.NewServiceError(http.StatusAccepted, "media is being compressed")
-		}
 		return nil, nil, nil, utils.NewServiceError(http.StatusNotFound, "couldn't open requested file")
 	}
 	fileheader, err := utils.GetFileHeader(filepath)

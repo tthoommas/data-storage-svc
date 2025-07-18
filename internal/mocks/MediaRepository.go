@@ -123,6 +123,24 @@ func (_m *MediaRepository) GetAllUploadedBy(userId *primitive.ObjectID) ([]model
 	return r0, r1
 }
 
+// Update provides a mock function with given fields: mediaId, update
+func (_m *MediaRepository) Update(mediaId *primitive.ObjectID, update primitive.M) error {
+	ret := _m.Called(mediaId, update)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Update")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*primitive.ObjectID, primitive.M) error); ok {
+		r0 = rf(mediaId, update)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // NewMediaRepository creates a new instance of MediaRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMediaRepository(t interface {
