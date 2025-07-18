@@ -20,4 +20,6 @@ type Media struct {
 	UploadTime *time.Time `bson:"uploadTime" json:"uploadTime"`
 	// Indicate if the file was uploaded via a shared link
 	UploadedViaSharedLink bool `bson:"uploadedViaSharedLink" json:"uploadedViaSharedLink"`
+	// Hash of the media data to ensure uniqueness
+	Hash *string `bson:"hash" json:"hash"`
 }

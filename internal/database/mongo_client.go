@@ -75,4 +75,11 @@ func configureMongoDb(client *mongo.Client, dbName string) {
 		Options: options.Index().SetUnique(true),
 	}
 	client.Database(dbName).Collection(repository.MEDIA_IN_ALBUM_COLLECTION).Indexes().CreateOne(context.Background(), uniqueMediaInAlbum)
+
+	// Create an index to quickly check if a media already exists for a user (use hash) also ensure user can store a file only once
+	mediaHashIndex := mongo.IndexModel{
+		Keys:    bson.D{{Key: "hash", Value: 1}, {Key: "uploadedBy", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	client.Database(dbName).Collection(repository.MEDIA_COLLECTION).Indexes().CreateOne(context.Background(), mediaHashIndex)
 }

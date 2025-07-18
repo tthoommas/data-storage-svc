@@ -15,6 +15,7 @@ import (
 
 	"github.com/evanoberholster/imagemeta"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type MediaService interface {
@@ -51,6 +52,14 @@ func NewMediaService(mediaRepository repository.MediaRepository, mediaInAblumRep
 
 func (s mediaService) Create(originalFilename, storageFilename string, uploader *primitive.ObjectID, uploadedViaSharedLink bool) (*primitive.ObjectID, utils.ServiceError) {
 	uploadTime := time.Now()
+	mediaDirectory, err := utils.GetDataDir(common.ORIGINAL_MEDIA_DIRECTORY)
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "unexpected error while creating media")
+	}
+	hash, err := utils.HashMedia(filepath.Join(mediaDirectory, storageFilename))
+	if err != nil {
+		return nil, utils.NewServiceError(http.StatusInternalServerError, "couldn't compute file hash")
+	}
 	mediaId, err := s.mediaRepository.Create(
 		&model.Media{
 			OriginalFileName:      &originalFilename,
@@ -58,9 +67,16 @@ func (s mediaService) Create(originalFilename, storageFilename string, uploader 
 			UploadedBy:            uploader,
 			UploadTime:            &uploadTime,
 			UploadedViaSharedLink: uploadedViaSharedLink,
+			Hash:                  hash,
 		},
 	)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			if err := os.Remove(filepath.Join(mediaDirectory, storageFilename)); err != nil {
+				slog.Error("couldn't remove duplicated file", "error", err)
+			}
+			return nil, utils.NewServiceError(http.StatusConflict, "media already exists")
+		}
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")
 	}
 	// Add this media to the compression queue

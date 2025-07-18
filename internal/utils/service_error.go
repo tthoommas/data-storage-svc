@@ -5,6 +5,7 @@ import "github.com/gin-gonic/gin"
 type ServiceError interface {
 	Apply(c *gin.Context)
 	GetCode() int
+	GetMessage() string
 }
 
 type serviceError struct {
@@ -22,4 +23,8 @@ func (s serviceError) Apply(c *gin.Context) {
 
 func (s serviceError) GetCode() int {
 	return s.HttpReturnCode
+}
+
+func (s serviceError) GetMessage() string {
+	return s.HttpReturnMessage
 }

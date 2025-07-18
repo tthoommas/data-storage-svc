@@ -7,7 +7,9 @@ import (
 	"data-storage-svc/internal/utils"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -106,11 +108,7 @@ func (e *mediaEndpoint) PreCreate(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.
 	user, sharedLink, err := utils.GetUserOrSharedLinkGeneric(hook.Context)
 
 	abortUnauthorized := func() (tusd.HTTPResponse, tusd.FileInfoChanges, error) {
-		return handler.HTTPResponse{
-			StatusCode: 401,
-			Body:       `{"error": "Unauthorized"}`,
-			Header:     map[string]string{"Content-Type": "application/json"},
-		}, handler.FileInfoChanges{}, fmt.Errorf("unauthorized")
+		return tusd.HTTPResponse{}, handler.FileInfoChanges{}, handler.NewError("401", "Unauthorized", http.StatusUnauthorized)
 	}
 
 	if err != nil {
@@ -121,13 +119,13 @@ func (e *mediaEndpoint) PreCreate(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.
 	originalFilename, err = utils.ToUTF8(originalFilename)
 
 	if err != nil || len(originalFilename) == 0 {
-		return abortUnauthorized()
+		return tusd.HTTPResponse{}, handler.FileInfoChanges{}, handler.NewError("400", "Bad request", http.StatusBadRequest)
 	}
 
 	mimeType := hook.Upload.MetaData["filetype"]
 	fileExtension, err := utils.MimeTypeToFileExtension(mimeType)
 	if err != nil {
-		return abortUnauthorized()
+		return tusd.HTTPResponse{}, handler.FileInfoChanges{}, handler.ErrInvalidContentType
 	}
 
 	// Check permissions
@@ -137,7 +135,7 @@ func (e *mediaEndpoint) PreCreate(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.
 	storageFileName := uuid.NewString() + "." + fileExtension
 	dataDir, err := utils.GetDataDir("originalMedias")
 	if err != nil {
-		return abortUnauthorized()
+		return tusd.HTTPResponse{}, handler.FileInfoChanges{}, handler.NewError("400", "Bad request", http.StatusBadRequest)
 	}
 
 	changes := handler.FileInfoChanges{
@@ -162,21 +160,15 @@ func (e *mediaEndpoint) PreCreate(hook tusd.HookEvent) (tusd.HTTPResponse, tusd.
 }
 
 func (e *mediaEndpoint) PreFinish(hook handler.HookEvent) (handler.HTTPResponse, error) {
-
-	// TODOOOO Check the file has an authorized extension
-	//fileHeader := make([]byte, 512)
-	//n, err := data.Read(fileHeader)
-	//if err != nil || n != 512 {
-	//	return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't read file header")
-	//}
-	//_, extension, isValid := utils.CheckFileExtension(fileHeader)
-	//if !isValid {
-	//	return nil, utils.NewServiceError(http.StatusBadRequest, "invalid file format")
-	//}
-
+	// Remove the .info file
+	dataDir, err := utils.GetDataDir("originalMedias")
+	if err == nil {
+		if err := os.Remove(filepath.Join(dataDir, hook.Upload.ID+".info")); err != nil {
+			slog.Error("couldn't remove .info file", "upload ID", hook.Upload.ID, "error", err)
+		}
+	}
 	hexUserId := hook.Upload.MetaData["userId"]
 	hexSharedLinkId := hook.Upload.MetaData["sharedLinkId"]
-
 	userId, errUserId := primitive.ObjectIDFromHex(hexUserId)
 	_, errSharedId := primitive.ObjectIDFromHex(hexSharedLinkId)
 
@@ -187,7 +179,7 @@ func (e *mediaEndpoint) PreFinish(hook handler.HookEvent) (handler.HTTPResponse,
 
 	mediaId, svcErr := e.mediaService.Create(hook.Upload.MetaData["originalFilename"], hook.Upload.MetaData["filename"], userIdPtr, errSharedId != nil)
 	if svcErr != nil {
-		return tusd.HTTPResponse{}, fmt.Errorf("couldn't create media")
+		return tusd.HTTPResponse{}, handler.NewError(svcErr.GetMessage(), svcErr.GetMessage(), svcErr.GetCode())
 	}
 	return handler.HTTPResponse{
 		StatusCode: 200,
