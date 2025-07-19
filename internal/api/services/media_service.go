@@ -71,9 +71,6 @@ func (s mediaService) Create(originalFilename, storageFilename string, uploader 
 	)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			if err := os.Remove(filepath.Join(mediaDirectory, storageFilename)); err != nil {
-				slog.Error("couldn't remove duplicated file", "error", err)
-			}
 			return nil, utils.NewServiceError(http.StatusConflict, "media already exists")
 		}
 		return nil, utils.NewServiceError(http.StatusBadRequest, "couldn't upload file")

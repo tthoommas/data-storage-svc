@@ -179,6 +179,10 @@ func (e *mediaEndpoint) PreFinish(hook handler.HookEvent) (handler.HTTPResponse,
 
 	mediaId, svcErr := e.mediaService.Create(hook.Upload.MetaData["originalFilename"], hook.Upload.MetaData["filename"], userIdPtr, errSharedId != nil)
 	if svcErr != nil {
+		// Couldn't create the media, delete the file
+		if err := os.Remove(filepath.Join(dataDir, hook.Upload.MetaData["filename"])); err != nil {
+			slog.Error("couldn't remove media file that couldn't be added to DB", "filename", hook.Upload.MetaData["filename"], "error", err)
+		}
 		return tusd.HTTPResponse{}, handler.NewError(svcErr.GetMessage(), svcErr.GetMessage(), svcErr.GetCode())
 	}
 	return handler.HTTPResponse{
